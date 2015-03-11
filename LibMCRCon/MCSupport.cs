@@ -1083,26 +1083,44 @@ namespace MinecraftFillRendering
 
     }
 
-
+    /// <summary>
+    /// Template class to help with creating 'rooms', various fill patterns.
+    /// Fill objects are using an ideal orientation, where -x is west, +x east, -z south, +z north, -y down, +y up
+    /// with pitch being level, and facing down the ideal +z axis.  All rotations will translate this to the
+    /// coordinate system of minecraft as well, rotated to the chosen pitch and facing.
+    /// </summary>
     public class MCRoomFillTemplate
     {
+        
         private string emptyBlock;
         private string fillBlock;
         private int[] offsetVoxel = new int[3];
 
         private bool autoOffset = false;
-
+       
+        /// <summary>
+        /// Any fill objects will be permamently offset changed using the values passed.  Set an activate
+        /// offset render mode.
+        /// </summary>
+        /// <param name="x">X Axis offset.</param>
+        /// <param name="y">Y Axis offset.</param>
+        /// <param name="z">Z Axis offset.</param>
         public void ActivateOffset(int x, int y, int z)
         {
             offsetVoxel[0] = x; offsetVoxel[1] = y; offsetVoxel[2] = z;
             autoOffset = true;
         }
-
+        /// <summary>
+        /// Toggle offset adjustments on or off.
+        /// </summary>
         public void ActivateOffset()
         {
             autoOffset = true;
         }
 
+        /// <summary>
+        /// Turn off offset option.
+        /// </summary>
         public void DeactivateOffset() { autoOffset = false; }
 
         private MCRoomFill applyOffset(MCRoomFill Room)
@@ -1116,8 +1134,18 @@ namespace MinecraftFillRendering
 
         }
 
+        /// <summary>
+        /// Minecraft block entity string used for an Emptied State
+        /// </summary>
         public string EmptyFillBlock { get { return emptyBlock; } set { emptyBlock = value; } }
+        /// <summary>
+        /// Minecraft block entity string used for Filled State
+        /// </summary>
         public string FillBlock { get { return fillBlock; } set { fillBlock = value; } }
+/// <remarks>
+/// The following MCFill
+/// 
+/// </remarks>
 
         public MCFill Fill(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 5, 5, 6); }
         public MCFill FillCenter(string BlockType) { return new MCFill(BlockType, 1, 0, 2, 4, 5, 5); }
@@ -1128,10 +1156,15 @@ namespace MinecraftFillRendering
         public MCFill FillFrontWall(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 5, 5, 1); }
         public MCFill FillBackWall(string BlockType) { return new MCFill(BlockType, 0, 0, 6, 5, 5, 6); }
 
-        public MCFill FillCenterLeftWall(string BlockType) { return new MCFill(BlockType, 1, 0, 1, 1, 5, 6); }
-        public MCFill FillCenterRightWall(string BlockType) { return new MCFill(BlockType, 4, 0, 1, 4, 5, 6); }
-        public MCFill FillCenterFrontWall(string BlockType) { return new MCFill(BlockType, 0, 0, 2, 5, 5, 2); }
-        public MCFill FillCenterBackWall(string BlockType) { return new MCFill(BlockType, 0, 0, 5, 5, 5, 5); }
+        public MCFill FillCenterLeftWall(string BlockType) { return new MCFill(BlockType, 1, 0, 2, 1, 5, 5); }
+        public MCFill FillCenterRightWall(string BlockType) { return new MCFill(BlockType, 4, 0, 2, 4, 5, 5); }
+        public MCFill FillCenterFrontWall(string BlockType) { return new MCFill(BlockType, 1, 0, 2, 4, 5, 2); }
+        public MCFill FillCenterBackWall(string BlockType) { return new MCFill(BlockType, 1, 0, 5, 4, 5, 5); }
+
+        public MCFill FillCenterPillarLeft(string BlockType) { return new MCFill(BlockType, 2, 0, 3, 2, 5, 4); }
+        public MCFill FillCenterPillarRight(string BlockType) { return new MCFill(BlockType, 3, 0, 3, 3, 5, 4); }
+        public MCFill FillCenterPillarFront(string BlockType) { return new MCFill(BlockType, 2, 0, 4, 3, 5, 4); }
+        public MCFill FillCenterPillarBack(string BlockType) { return new MCFill(BlockType, 2, 0, 3, 3, 5, 3); }
 
         public MCFill FillFloor(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 5, 0, 6); }
         public MCFill FillCeiling(string BlockType) { return new MCFill(BlockType, 0, 5, 1, 5, 5, 6); }
