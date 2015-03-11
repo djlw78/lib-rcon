@@ -810,7 +810,7 @@ namespace MinecraftServer
     }
 
 }
-//!
+//!Use of the command fill in a structured and controlled manner.
 namespace MinecraftFillRendering
 {
     /// <summary>
@@ -1026,7 +1026,9 @@ namespace MinecraftFillRendering
 
         }
     }
-
+    /// <summary>
+    /// A collection of MCFill objects that could resemble a room structure.
+    /// </summary>
     public class MCRoomFill : List<MCFill>
     {
 
