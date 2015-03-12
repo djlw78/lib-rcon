@@ -1085,9 +1085,17 @@ namespace MinecraftFillRendering
 
     /// <summary>
     /// Template class to help with creating 'rooms', various fill patterns.
-    /// Fill objects are using an ideal orientation, where -x is west, +x east, -z south, +z north, -y down, +y up
-    /// with pitch being level, and facing down the ideal +z axis.  All rotations will translate this to the
-    /// coordinate system of minecraft as well, rotated to the chosen pitch and facing.
+    /// 
+    /// Fill objects are using thier own coordinate space.  From an origin point the render axis work
+    /// in the following fashion. 
+    /// 
+    /// -X strafe left, +X strafe right
+    /// -Y down, +Y up
+    /// -Z backward, +Z forward
+    /// 
+    /// Most built-in fills are cubes that render forward and to the right 6 units.
+    /// Rooms are set 6x6x6 units, the Map coordinates places each room in multiples of 6.
+    /// 
     /// </summary>
     public class MCRoomFillTemplate
     {
@@ -1142,11 +1150,11 @@ namespace MinecraftFillRendering
         /// Minecraft block entity string used for Filled State
         /// </summary>
         public string FillBlock { get { return fillBlock; } set { fillBlock = value; } }
-/// <remarks>
-/// The following MCFill
-/// 
-/// </remarks>
 
+  
+      
+
+       
         public MCFill Fill(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 5, 5, 6); }
         public MCFill FillCenter(string BlockType) { return new MCFill(BlockType, 1, 0, 2, 4, 5, 5); }
         public MCFill FillCenterPillar(string BlockType) { return new MCFill(BlockType, 2, 0, 3, 3, 5, 4); }
@@ -1181,6 +1189,7 @@ namespace MinecraftFillRendering
         public MCFill FillRightWallSolid(string BlockType) { return new MCFill(fillBlock, 3, 0, 1, 5, 5, 6); }
         public MCFill FillBackWallSolid(string BlockType) { return new MCFill(fillBlock, 0, 0, 4, 5, 5, 6); }
         public MCFill FillFrontWallSolid(string BlockType) { return new MCFill(fillBlock, 0, 0, 1, 5, 5, 3); }
+
 
         public MCRoomFillTemplate()
         {
