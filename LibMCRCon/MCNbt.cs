@@ -25,7 +25,8 @@ namespace MinecraftServer
         TAG_string = 8,
         TAG_list = 9,
         TAG_compound = 10,
-        TAG_array_int = 11
+        TAG_array_int = 11,
+        TAG_UNKNOWN = 12
 
     }
 
