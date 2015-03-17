@@ -829,6 +829,8 @@ namespace MinecraftServer
 /// </summary>
 namespace MinecraftFillRendering
 {
+   
+
     /// <summary>
     /// Enumeration to set the facing of the 'player' before rendering fill commands.
     /// </summary>
@@ -842,7 +844,7 @@ namespace MinecraftFillRendering
     /// </summary>
     public class MCFill
     {
-        string blockType;
+        public string BlockType {get;set;} 
 
         int[] p1 = new int[3];
         int[] p2 = new int[3];
@@ -979,17 +981,14 @@ namespace MinecraftFillRendering
             r2[2] = sz * (offset[rz] + p2[rz]);
 
             if (IsAbsolute == true)
-                return string.Format(@"fill {1} {2} {3} {4} {5} {6} {0}", blockType, r1[0], r1[1], r1[2], r2[0], r2[1], r2[2]);
+                return string.Format(@"fill {1} {2} {3} {4} {5} {6} {0}", BlockType, r1[0], r1[1], r1[2], r2[0], r2[1], r2[2]);
             else
-                return string.Format(@"fill ~{1} ~{2} ~{3} ~{4} ~{5} ~{6} {0}", blockType, r1[0], r1[1], r1[2], r2[0], r2[1], r2[2]);
+                return string.Format(@"fill ~{1} ~{2} ~{3} ~{4} ~{5} ~{6} {0}", BlockType, r1[0], r1[1], r1[2], r2[0], r2[1], r2[2]);
 
 
         }
 
-        public void SetBlockType(string BlockType)
-        {
-            blockType = BlockType;
-        }
+
         /// <summary>
         /// Sets the first point in the fill cube.
         /// </summary>
@@ -1020,7 +1019,7 @@ namespace MinecraftFillRendering
         /// </summary>
         public MCFill()
         {
-            blockType = "minecraft:stone";
+            BlockType = "minecraft:stone";
         }
 
         /// <summary>
@@ -1033,12 +1032,17 @@ namespace MinecraftFillRendering
         /// <param name="xs">X axis length</param>
         /// <param name="ys">Y axis length</param>
         /// <param name="zs">Z axis length</param>
-        public MCFill(string BlockType, int x1, int y1, int z1, int xs, int ys, int zs)
+        public MCFill(int xs, int ys, int zs, int x1, int y1, int z1,string BlockType)
         {
-            blockType = BlockType;
-           
+            this.BlockType = BlockType;
             Reset(x1, y1, z1, xs, ys, zs);
 
+        }
+
+        public MCFill(int xs, int ys, int zs, string BlockType)
+        {
+            this.BlockType = BlockType;
+            Reset(0, 0, 0, xs, ys, zs);
         }
 
         public int[] size
@@ -1054,10 +1058,17 @@ namespace MinecraftFillRendering
             }
         }
 
-        public MCFill OffsetClone(int x, int y, int z)
+        public MCFill OffsetClone(int x, int y, int z, string BlockType)
         {
             int[] s = size;
-            return new MCFill(blockType, x, y, z, s[0], s[1], s[2]);
+            return new MCFill(s[0], s[1], s[2], x, y, z, BlockType);
+          
+        }
+
+        public MCFill Clone(string BlockType)
+        {
+            int[] s = size;
+            return new MCFill(s[0], s[1], s[2], p1[0], p1[1], p1[2], BlockType);
         }
 
         public void Reset(int x, int y, int z)
@@ -1101,7 +1112,12 @@ namespace MinecraftFillRendering
                 p1[2] = z1;
                 p2[2] = z1 + (zs - 1);
             }
+            
+          
         }
+
+        
+
     }
 
    
@@ -1149,18 +1165,6 @@ namespace MinecraftFillRendering
             return render;
         }
 
-        public MCRoomFill OffsetClone(int x, int y, int z)
-        {
-            MCRoomFill r = new MCRoomFill();
-            foreach(MCFill f in this)
-            {
-                r.Add(f.OffsetClone(x, y, z));
-            }
-            
-            return r;
-
-        }
-
         public void OffsetMCFill(int[] voxelOffset)
         {
             foreach(MCFill mcf in this)
@@ -1188,44 +1192,16 @@ namespace MinecraftFillRendering
     /// Rooms are set 6x6x6 units, the Map coordinates places each room in multiples of 6.
     /// 
     /// </summary>
-    public class MCRoomFillTemplate:Dictionary<string,MCRoomFill>
+    public class MCRoomFillTemplate
     {
-        
+
+
         private string emptyBlock;
         private string fillBlock;
         private int[] offsetVoxel = new int[3];
 
         private bool autoOffset = false;
-        
-        /// <summary>
-        /// User defined rooms can be added to the template object for lookup and use later.
-        /// 
-        /// </summary>
-        /// <param name="idx">The id of the MCRoomFill object.</param>
-        /// <returns>If id found, will return MCRoomFill object, otherwise returns null.</returns>
-        public MCRoomFill this[string idx]
-        {
-            get
-            {
-                if (base.ContainsKey(idx) == true)
-                    return base[idx];
-                else
-                    return null;
-            }
-            set
-            {
-                if(base.ContainsKey(idx) == false)
-                {
-                    Add(idx, value);
-                }
-                else
-                {
-                    Remove(idx);
-                    Add(idx, value);
-                }
-            }
-        }
-       
+
         /// <summary>
         /// Any fill objects will be permamently offset changed using the values passed.  Set an activate
         /// offset render mode.
@@ -1256,7 +1232,7 @@ namespace MinecraftFillRendering
 
             if (autoOffset == true)
                 Room.OffsetMCFill(offsetVoxel);
-            
+
             return Room;
 
 
@@ -1270,52 +1246,63 @@ namespace MinecraftFillRendering
         /// Minecraft block entity string used for Filled State
         /// </summary>
         public string FillBlock { get { return fillBlock; } set { fillBlock = value; } }
-     
-        public MCFill Fill(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 6, 6, 6); }
- 
-        public MCFill FillCenter(string BlockType) { return new MCFill(BlockType, 1, 0, 2, 4, 6, 4); }
-        public MCFill FillCenterPillar(string BlockType) { return new MCFill(BlockType, 2, 0, 3, 2, 6, 2); }
-
-        public MCFill FillLeftWall(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 1, 6, 6); }
-        public MCFill FillRightWall(string BlockType) { return new MCFill(BlockType, 5, 0, 1, 1, 6, 6); }
-        public MCFill FillFrontWall(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 6, 6, 1); }
-        public MCFill FillBackWall(string BlockType) { return new MCFill(BlockType, 0, 0, 6, 6, 6, 1); }
-
-        public MCFill FillCenterLeftWall(string BlockType) { return new MCFill(BlockType, 1, 0, 2, 1, 6, 4); }
-        public MCFill FillCenterRightWall(string BlockType) { return new MCFill(BlockType, 4, 0, 2, 1, 6, 4); }
-        public MCFill FillCenterFrontWall(string BlockType) { return new MCFill(BlockType, 1, 0, 2, 4, 6, 1); }
-        public MCFill FillCenterBackWall(string BlockType) { return new MCFill(BlockType, 1, 0, 5, 4, 6, 1); }
-
-        public MCFill FillCenterPillarLeft(string BlockType) { return new MCFill(BlockType, 2, 0, 3, 1, 6, 2); }
-        public MCFill FillCenterPillarRight(string BlockType) { return new MCFill(BlockType, 3, 0, 3, 1, 6, 2); }
-        public MCFill FillCenterPillarFront(string BlockType) { return new MCFill(BlockType, 2, 0, 4, 2, 6, 1); }
-        public MCFill FillCenterPillarBack(string BlockType) { return new MCFill(BlockType, 2, 0, 3, 2, 6, 1); }
-
-        public MCFill FillFloor(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 6, 1, 6); }
-        public MCFill FillCeiling(string BlockType) { return new MCFill(BlockType, 0, 5, 1, 6, 1, 6); }
-
-        public MCFill FillBackLeftCorner(string BlockType) { return new MCFill(BlockType, 0, 0, 5, 2, 6, 2); }
-        public MCFill FillBackRightCorner(string BlockType) { return new MCFill(BlockType, 4, 0, 5, 2, 6, 2); }
-        public MCFill FillFrontLeftCorner(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 2, 6, 2); }
-        public MCFill FillFrontRightCorner(string BlockType) { return new MCFill(BlockType, 4, 0, 1, 2, 6, 2); }
-
-        public MCFill FillLRHall(string BlockType) { return new MCFill(BlockType, 0, 0, 3, 6, 6, 2); }
-        public MCFill FillFBHall(string BlockType) { return new MCFill(BlockType, 2, 0, 1, 2, 6, 6); }
-
-        public MCFill FillLeftWallSolid(string BlockType) { return new MCFill(BlockType, 0, 0, 1, 3, 6, 6); }
-        public MCFill FillRightWallSolid(string BlockType) { return new MCFill(fillBlock, 3, 0, 1, 3, 6, 6); }
-        public MCFill FillBackWallSolid(string BlockType) { return new MCFill(fillBlock, 0, 0, 4, 6, 6, 3); }
-        public MCFill FillFrontWallSolid(string BlockType) { return new MCFill(fillBlock, 0, 0, 1, 6, 6, 3); }
 
 
-        public MCRoomFillTemplate():base()
+        public MCFill Fill(string BlockType) { return new MCFill(6, 6, 6, 0, 0, 1, BlockType); }
+
+        public MCFill FillCenter(string BlockType) { return new MCFill(4, 6, 4, 1, 0, 1, BlockType); }
+        public MCFill FillCenterPillar(string BlockType) { return new MCFill(2, 6, 2, 2, 0, 3, BlockType); }
+
+        public MCFill FillLeftWall(string BlockType) { return new MCFill(1, 6, 6, 0, 0, 1, BlockType); }
+        public MCFill FillRightWall(string BlockType) { return new MCFill(1, 6, 6, 5, 0, 1, BlockType); }
+        public MCFill FillFrontWall(string BlockType) { return new MCFill(6, 6, 1, 0, 0, 1, BlockType); }
+        public MCFill FillBackWall(string BlockType) { return new MCFill(6, 6, 1, 0, 0, 6, BlockType); }
+
+        public MCFill FillCenterLeftWall(string BlockType) { return new MCFill(1, 6, 4, 1, 0, 1, BlockType); }
+        public MCFill FillCenterRightWall(string BlockType) { return new MCFill(1, 6, 4, 4, 0, 1, BlockType); }
+        public MCFill FillCenterFrontWall(string BlockType) { return new MCFill(4, 6, 1, 1, 0, 1, BlockType); }
+        public MCFill FillCenterBackWall(string BlockType) { return new MCFill(4, 6, 1, 1, 0, 5, BlockType); }
+
+        public MCFill FillCenterPillarLeft(string BlockType) { return new MCFill(1, 6, 2, 2, 0, 3, BlockType); }
+        public MCFill FillCenterPillarRight(string BlockType) { return new MCFill(1, 6, 2, 3, 0, 3, BlockType); }
+        public MCFill FillCenterPillarFront(string BlockType) { return new MCFill(2, 6, 1, 2, 0, 3, BlockType); }
+        public MCFill FillCenterPillarBack(string BlockType) { return new MCFill(2, 6, 1, 2, 0, 4, BlockType); }
+
+        public MCFill FillFloor(string BlockType) { return new MCFill(6, 1, 6, 0, 0, 1, BlockType); }
+        public MCFill FillCeiling(string BlockType) { return new MCFill(6, 1, 6, 0, 5, 1, BlockType); }
+
+        public MCFill FillBackLeftCorner(string BlockType) { return new MCFill(2, 6, 2, 0, 0, 5, BlockType); }
+        public MCFill FillBackRightCorner(string BlockType) { return new MCFill(2, 6, 2, 4, 0, 5, BlockType); }
+        public MCFill FillFrontLeftCorner(string BlockType) { return new MCFill(2, 6, 2, 0, 0, 1, BlockType); }
+        public MCFill FillFrontRightCorner(string BlockType) { return new MCFill(2, 6, 2, 4, 0, 1, BlockType); }
+
+        public MCFill FillLRHall(string BlockType) { return new MCFill(6, 6, 2, 0, 0, 3, BlockType); }
+        public MCFill FillFBHall(string BlockType) { return new MCFill(2, 6, 6, 2, 0, 1, BlockType); }
+
+        public MCFill FillLeftWallSolid(string BlockType) { return new MCFill(3, 6, 6, 0, 0, 1, BlockType); }
+        public MCFill FillRightWallSolid(string BlockType) { return new MCFill(3, 6, 6, 3, 0, 1, BlockType); }
+        public MCFill FillBackWallSolid(string BlockType) { return new MCFill(6, 6, 3, 0, 0, 4, BlockType); }
+        public MCFill FillFrontWallSolid(string BlockType) { return new MCFill(6, 6, 3, 0, 0, 1, BlockType); }
+
+
+
+        public MCRoomFillTemplate()
         {
-            
+
             fillBlock = "minecraft:stone";
             emptyBlock = "minecraft:air";
-            
 
         }
+        public MCRoomFillTemplate(string FillBlock, string EmptyBlock)
+        {
+            fillBlock = FillBlock;
+            emptyBlock = EmptyBlock;
+
+
+
+        }
+
+
 
         public MCRoomFill NSEWRoom { get { return applyOffset(new MCRoomFill(Fill(fillBlock), FillCenter(emptyBlock), FillLRHall(emptyBlock), FillFBHall(emptyBlock))); } }
         public MCRoomFill NSEWRoomPillar { get { return applyOffset(new MCRoomFill(NSEWRoom, FillCenterPillar(fillBlock))); } }
@@ -1378,7 +1365,7 @@ namespace MinecraftFillRendering
         MCRenderFacing defaultFacing = MCRenderFacing.North;
         int pitch = 0;
 
-        MCRoomFill room;
+        public MCRoomFill room { get; set; }
 
         int mapX;
         int mapY;
@@ -1386,7 +1373,7 @@ namespace MinecraftFillRendering
 
         public MCMapRoom()
         {
-            room = new MCRoomFill(new MCFill("minecraft:air", 0, 0, 1, 5, 5, 6));
+            room = new MCRoomFill(new MCFill(6, 6, 6, 0, 0, 1, "minecraft:air"));
             mapX = 0;
             mapY = 0;
             mapZ = 0;
@@ -1408,6 +1395,7 @@ namespace MinecraftFillRendering
             defaultFacing = Facing;
             pitch = Pitch;
         }
+       
         public string[] Render()
         {
             return room.Render(defaultFacing, pitch, false, mapX * 6, mapY * 6, mapZ * 6);
@@ -1441,7 +1429,7 @@ namespace MinecraftFillRendering
 
         public void InsertMapFill(string BlockType, int FloorWidth, int FloorHeight, int FloorDepth)
         {
-            Add(new MCMapRoom(new MCRoomFill(new MCFill(BlockType, 0, 0, 1, (FloorWidth * 6) - 1, (FloorHeight * 6) - 1, (FloorDepth * 6))), 0, 0, 0));
+            Add(new MCMapRoom(new MCRoomFill(new MCFill(FloorWidth * 6, FloorHeight * 6, FloorDepth * 6, 0, 0, 0, BlockType)), 0, 0, 0));
         }
 
         public string[] RenderMap()
