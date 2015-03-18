@@ -836,11 +836,16 @@ namespace MinecraftFillRendering
     /// </summary>
     public enum MCRenderFacing { North=0, South=1, East=2, West=3 };
     /// <summary>
-    /// Defines a fill command, including what should be used to fill and the 2 sets of X,Y,Z coordinates that
-    /// create a cube to fill.
-    /// The values in the 2 points that define the fill cube are either relative to the player's coordinates or
-    /// actual world coordinates.  The fill has the minecraft block entity id set and can be rendered along 
-    /// 6 different planes: North, South, East, West and with a Pitch of level, up or down.
+    /// Defines a fill command, including what tile block entity should be used to fill and 2 sets of X,Y,Z voxels (3-d ordinates)
+    /// that create a cube.
+    /// 
+    /// Fills are cubes.  These cubes us a common coordinate system from the perspective of a player
+    /// in Minecraft standing on origin.  For these fill primatives, the +Z axis goes out forward from
+    /// the player, +X strafes right.  +Y goes above the player.  For creating these cubes, player
+    /// facing is not considered. 
+    /// -Z,-X, and -Y are the opposite. 
+    /// 
+    /// The voxels can either be offsets from player origin or absolute coordinates.
     /// </summary>
     public class MCFill
     {
@@ -1181,16 +1186,7 @@ namespace MinecraftFillRendering
     /// <summary>
     /// Template class to help with creating 'rooms', various fill patterns.
     /// 
-    /// Fill objects are using thier own coordinate space.  From an origin point the render axis work
-    /// in the following fashion. 
-    /// 
-    /// -X strafe left, +X strafe right
-    /// -Y down, +Y up
-    /// -Z backward, +Z forward
-    /// 
-    /// Most built-in fills are cubes that render forward and to the right 6 units.
-    /// Rooms are set 6x6x6 units, the Map coordinates places each room in multiples of 6.
-    /// 
+    ///
     /// </summary>
     public class MCRoomFillTemplate
     {
