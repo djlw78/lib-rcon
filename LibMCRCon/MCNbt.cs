@@ -264,7 +264,7 @@ namespace MinecraftServer
 
     public abstract class NbtBase
     {
-
+        
         public long endpos { get; set; }
 
         public NbtType tagtype { get; set; }
@@ -348,7 +348,50 @@ namespace MinecraftServer
             n.tagname = NbtReader.TagString(s);
             return n;
         }
-       
+        public NbtBase this[string name]
+        {
+            get
+            {
+                if (name.Length == 0)
+                    return null;
+
+                if (name == tagname)
+                    return this;
+
+                NbtBase found = null;
+                List<NbtBase> n;
+                List<NbtBase> nn;
+
+                switch (tagtype)
+                {
+                    case NbtType.TAG_compound:
+                        n = ((NbtCompound)this).tagvalue;
+                        
+                        break;
+                    case NbtType.TAG_list:
+                        n = ((NbtList)this).tagvalue;
+                        break;
+                    default:
+                        return null;
+                }
+
+                found = n.Find(x => x.tagname == name);
+                if (found != null)
+                    return found;
+
+                nn = n.FindAll(x => (x.tagtype == NbtType.TAG_compound || x.tagtype == NbtType.TAG_list));
+                foreach (NbtBase x in nn)
+                {
+                    found = x[name];
+                    if (found != null)
+                        return found;
+                }
+
+                return null;
+            }
+           
+        }
+        
         public abstract void WriteStream(Stream s);
         public abstract void ReadStream(Stream s);
 
@@ -382,33 +425,6 @@ namespace MinecraftServer
             {
                 return tagvalue[idx];
             }
-        }
-        public NbtBase this[string name]
-        {
-
-           get
-            {
-                NbtBase found = tagvalue.Find(x => x.tagname == name);
-                if (found == null)
-                {
-                    List<NbtBase> children = tagvalue.FindAll(x => (x.tagtype == NbtType.TAG_compound || x.tagtype == NbtType.TAG_list));
-                    foreach(NbtBase n in children)
-                    {
-                        if (n.tagtype == NbtType.TAG_compound)
-                            found = ((NbtCompound)n)[name];
-                        else
-                            found = ((NbtList)n)[name];
-
-                        if (found != null)
-                            break;
-                    }
-
-                }
-               return found;
-
-            }
-
-            
         }
 
         public override void WriteStream(Stream s)
@@ -454,33 +470,6 @@ namespace MinecraftServer
             {
                 return tagvalue[idx];
             }
-        }
-        public NbtBase this[string name]
-        {
-
-            get
-            {
-                NbtBase found = tagvalue.Find(x => x.tagname == name);
-                if (found == null)
-                {
-                    List<NbtBase> children = tagvalue.FindAll(x => (x.tagtype == NbtType.TAG_compound || x.tagtype == NbtType.TAG_list));
-                    foreach (NbtBase n in children)
-                    {
-                        if (n.tagtype == NbtType.TAG_compound)
-                            found = ((NbtCompound)n)[name];
-                        else
-                            found = ((NbtList)n)[name];
-
-                        if (found != null)
-                            break;
-                    }
-
-                }
-                return found;
-
-            }
-
-
         }
 
         public override void WriteStream(Stream s)
@@ -1322,6 +1311,7 @@ namespace MinecraftServer
         {
             return heightMap.tagvalue[((z & 0x000F) * 16) + (x & 0x000F)];
         }
+
         public int Height(Chunk Chunk)
         {
             if (heightMap == null)
