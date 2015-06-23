@@ -67,13 +67,35 @@ namespace MinecraftServer
             if (BitConverter.IsLittleEndian) Array.Reverse(payload);
             s.Write(payload, 0, 2);
         }
+
+        public static void TagShort(UInt16 data,Stream s)
+        {
+            byte[] payload = BitConverter.GetBytes(data);
+            if (BitConverter.IsLittleEndian) Array.Reverse(payload);
+            s.Write(payload, 0, 2);
+        }
+
         public static void TagInt(Int32 data, Stream s)
         {
             byte[] payload = BitConverter.GetBytes(data);
             if (BitConverter.IsLittleEndian) Array.Reverse(payload);
             s.Write(payload, 0, 4);
         }
+
+        public static void TagInt(UInt32 data, Stream s)
+        {
+            byte[] payload = BitConverter.GetBytes(data);
+            if (BitConverter.IsLittleEndian) Array.Reverse(payload);
+            s.Write(payload, 0, 4);
+        }
+
         public static void TagLong(Int64 data,Stream s)
+        {
+            byte[] payload = BitConverter.GetBytes(data);
+            if (BitConverter.IsLittleEndian) Array.Reverse(payload);
+            s.Write(payload, 0, 8);
+        }
+        public static void TagLong(UInt64 data, Stream s)
         {
             byte[] payload = BitConverter.GetBytes(data);
             if (BitConverter.IsLittleEndian) Array.Reverse(payload);
@@ -96,6 +118,12 @@ namespace MinecraftServer
 
             byte[] payload = Encoding.UTF8.GetBytes(data);
             TagShort((short)payload.Length, s);
+            s.Write(payload, 0, payload.Length);
+        }
+        public static void TagRawString(String data,Stream s)
+        {
+
+            byte[] payload = Encoding.UTF8.GetBytes(data);
             s.Write(payload, 0, payload.Length);
         }
         public static void TagIntArray(Int32[] data, Stream s)
@@ -155,6 +183,7 @@ namespace MinecraftServer
 
             return 0;
         }
+
         public static Int16 TagShort(Stream s)
         {
             byte[] payload = new byte[2];
@@ -167,6 +196,19 @@ namespace MinecraftServer
 
             return 0;
         }
+        public static UInt16 TagUShort(Stream s)
+        {
+            byte[] payload = new byte[2];
+            if (s.Read(payload, 0, 2) == 2)
+            {
+                if (BitConverter.IsLittleEndian) Array.Reverse(payload);
+                return BitConverter.ToUInt16(payload, 0);
+
+            }
+
+            return 0;
+        }
+       
         public static Int32 TagInt(Stream s)
         {
             byte[] payload = new byte[4];
@@ -181,6 +223,21 @@ namespace MinecraftServer
 
 
         }
+        public static UInt32 TagUInt(Stream s)
+        {
+            byte[] payload = new byte[4];
+            if (s.Read(payload, 0, 4) == 4)
+            {
+                if (BitConverter.IsLittleEndian) Array.Reverse(payload);
+                return BitConverter.ToUInt32(payload, 0);
+
+            }
+
+            return 0;
+
+
+        }
+
         public static Int64 TagLong(Stream s)
         {
             byte[] payload = new byte[8];
@@ -193,6 +250,19 @@ namespace MinecraftServer
 
             return 0;
         }
+        public static UInt64 TagULong(Stream s)
+        {
+            byte[] payload = new byte[8];
+            if (s.Read(payload, 0, 8) == 8)
+            {
+                if (BitConverter.IsLittleEndian) Array.Reverse(payload);
+                return BitConverter.ToUInt64(payload, 0);
+
+            }
+
+            return 0;
+        }
+
         public static Single TagFloat(Stream s)
         {
             byte[] payload = new byte[4];
