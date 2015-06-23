@@ -103,18 +103,7 @@ namespace MinecraftServer
        }
    }
 
-    class mcProtoPacketZlib:mcProtoPacket
-    {
-        public mcProtoPacketZlib()
-        {
-            
-        }
-        public mcProtoPacketZlib(Stream s)  
-        {
-
-
-        }
-    }
+   
 
 
 }
