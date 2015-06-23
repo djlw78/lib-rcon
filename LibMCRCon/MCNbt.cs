@@ -1096,7 +1096,7 @@ namespace MinecraftServer
                     byte[] int32data = new byte[4];
                     byte[] int16data = new byte[2];
 
-                    byte[] chunkraw = new byte[0xfa000];
+                   // byte[] chunkraw = new byte[0xfa000];
 
                     Array.Copy(chunkdata, 0, int32data, 0, 4);
                     if(BitConverter.IsLittleEndian) Array.Reverse(int32data);
