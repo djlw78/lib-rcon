@@ -12,20 +12,22 @@ namespace MinecraftServer
 
    class mcProtoPacket
    {
-       int Length { get; private set; }
-       int DataLength {get;private set;}
+       public int Length { get; private set; }
+       public int DataLength {get;private set;}
        
-       int PacketId { get;set; }
-       byte[] Data { get; set; }
+       public int PacketId { get;set; }
+       public byte[] Data { get; set; }
        
-       bool DataRead { get; set; }
-       bool Compression { get; set; }
+       public bool DataRead { get; private set; }
+       public bool Compression { get; set; }
        
        public mcProtoPacket()
        {
            Length = 0;
            PacketId = 0;
            DataLength = 0;
+           Compression = false;
+           DataRead = false;
        }
        public mcProtoPacket(bool UseCompression):this()
        {
