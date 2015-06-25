@@ -67,28 +67,24 @@ namespace MinecraftServer
             if (BitConverter.IsLittleEndian) Array.Reverse(payload);
             s.Write(payload, 0, 2);
         }
-
         public static void TagShort(UInt16 data,Stream s)
         {
             byte[] payload = BitConverter.GetBytes(data);
             if (BitConverter.IsLittleEndian) Array.Reverse(payload);
             s.Write(payload, 0, 2);
         }
-
         public static void TagInt(Int32 data, Stream s)
         {
             byte[] payload = BitConverter.GetBytes(data);
             if (BitConverter.IsLittleEndian) Array.Reverse(payload);
             s.Write(payload, 0, 4);
         }
-
         public static void TagInt(UInt32 data, Stream s)
         {
             byte[] payload = BitConverter.GetBytes(data);
             if (BitConverter.IsLittleEndian) Array.Reverse(payload);
             s.Write(payload, 0, 4);
         }
-
         public static void TagLong(Int64 data,Stream s)
         {
             byte[] payload = BitConverter.GetBytes(data);
