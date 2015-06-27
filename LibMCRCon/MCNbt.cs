@@ -737,6 +737,7 @@ namespace MinecraftServer
         {
             return (zoneAxis * size) + zoneAxisOffset;
         }
+        
         public static int ZoneZXIndex(int size, int z, int x)
         {
             return (z * size) + x;
@@ -879,7 +880,7 @@ namespace MinecraftServer
         }
 
         public int YSect { get { return CVoxel[0].Y; } }
-       
+      
         public void ZoneAlignment(params int[] RegionVoxel)
         {
             ZoneY = RegionVoxel[0];
