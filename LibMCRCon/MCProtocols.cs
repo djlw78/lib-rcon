@@ -14,6 +14,14 @@ namespace MinecraftServer
     public enum mcProtoStates { HandShake, Play }
     public enum mcProtoTargets { Server , Client }
 
+    public interface mcProto
+    {
+        public void SendPacket(Stream s);
+        public void ReceivePacket();
+        public mcProto(mcProtoPacket Packet);
+        public mcProtoPacket Packet { get; set; }
+
+    }
 
     public class mcProtoPacket
     {
@@ -37,9 +45,14 @@ namespace MinecraftServer
 
 
         }
-        public mcProtoPacket(bool UseCompression): this()
+        public mcProtoPacket(bool UseCompression)
         {
             Compression = UseCompression;
+        }
+        public mcProtoPacket(bool UseCompression, mcProto PacketHandler)
+        {
+            Compression = UseCompression;
+            Packet = PacketHandler;
         }
 
         public void ReadPacket(Stream s)
@@ -183,72 +196,80 @@ namespace MinecraftServer
 
         }
 
-        public virtual LoadPacket()
+    }
+
+    public class mcProtoHandshake : mcProto
+    {
+
+        public int ProtocolVersion { get; set; }
+        public string Address { get; set; }
+        public ushort Port { get; set; }
+        public int NextState { get; set; }
+
+        public mcProtoHandshake()
         {
+
+            ProtocolVersion = 47;
+            Port = 25565;
+
+        }
+        public mcProtoHandshake(mcProtoPacket Packet):this()
+        {
+            this.Packet = Packet;
+        }
+
+        public void SendPacket(Stream s)
+        {
+
+            VarInt vi = new VarInt();
+
+            MemoryStream ms = new MemoryStream();
+
+            vi.SetValue(ProtocolVersion);
+            ms.Write(vi.VarIntData, 0, vi.Length);
+
+            vi.SetValue(Address.Length);
+            ms.Write(vi.VarIntData, 0, vi.Length);
+
+            NbtWriter.TagRawString(Address, ms);
+            NbtWriter.TagShort(Port, ms);
+
+            vi.SetValue(NextState);
+            ms.Write(vi.VarIntData, 0, vi.Length);
+
+            Packet.DataLength = (int)ms.Position;
+            Packet.Data = ms.ToArray();
+
+            ms.Close();
+
+            Packet.WritePacket(s);
 
         }
 
-        public mcProtoPacket() {}
-        public mcProtoPacket(int PacketID, byte[] Data)
+        public void ReceivePacket()
         {
+            MemoryStream ms = new MemoryStream(Packet.Data);
+            VarInt vi = new VarInt(ms);
+            
+            ProtocolVersion = VarintBitConverter.ToInt32(vi.VarIntData);
+            vi.SetValue(ms);
+            
+           
 
         }
+
+        public mcProtoPacket Packet {get;set;}
 
     }
-   
-   public class mcProtoHandshake:mcProtoPacket
-   {
-       
-      
-       public int ProtocolVersion { get; set; }
-       public string Address { get; set; }
-       public ushort Port { get; set; }
-       public int NextState { get; set; }
 
-       public mcProtoHandshake():base()
-       {
 
-           PacketId = 0x00;
-           ProtocolVersion = 47;
-           Port = 25565;
 
-       }
-      
-       public override void SendPacket(Stream s)
-       {
-           
-           VarInt vi = new VarInt();
-                     
-           MemoryStream ms = new MemoryStream();
-           
-           vi.SetValue(ProtocolVersion);
-           ms.Write(vi.VarIntData, 0, vi.Length);
-           
-           vi.SetValue(Address.Length);
-           ms.Write(vi.VarIntData, 0, vi.Length);
-           
-           NbtWriter.TagRawString(Address, ms);
-           NbtWriter.TagShort(Port, ms);
-
-           vi.SetValue(NextState);
-           ms.Write(vi.VarIntData, 0, vi.Length);
-
-           DataLength = (int)ms.Position;
-           Data = ms.ToArray();
-           
-           ms.Close();
-
-           WritePacket(s);
-       
-       }
-
-   }
    public class mcProtoKeepAlive:mcProtoPacket
    {
        public int KeepAlive { get; set; }
-       public override void SendPacket(Stream s)
+       public override void SendPacket(mcProtoPacket Packet,Stream s)
        {
-          
+
            Data = VarintBitConverter.GetVarintBytes(KeepAlive);
            
            WritePacket(s);
@@ -261,6 +282,43 @@ namespace MinecraftServer
 
        public int Length { get { return VarIntData.Length; } }
        public byte[] VarIntData {get;private set;}
+
+       public VarInt()
+       {
+           VarIntData = new byte[0];
+       }
+       public VarInt(Stream s)
+       {
+           VarIntData = VarIntFromStream(s);
+       }
+       public VarInt(Byte value)
+       {
+           SetValue(value);
+       }
+       public VarInt(Int16 value)
+       {
+           SetValue(value);
+       }
+       public VarInt(Int32 value)
+       {
+           SetValue(value);
+       }
+       public VarInt(Int64 value)
+       {
+           SetValue(value);
+       }
+       public VarInt(UInt16 value)
+       {
+           SetValue(value);
+       }
+       public VarInt(UInt32 value)
+       {
+           SetValue(value);
+       }
+       public VarInt(UInt64 value)
+       {
+           SetValue(value);
+       }
 
        public void SetValue(Byte value)
        {
@@ -295,6 +353,15 @@ namespace MinecraftServer
            VarIntData = VarIntFromStream(s);
        }
 
+       public byte ToByte { get { return VarintBitConverter.ToByte(VarIntData); } }
+
+       public short ToInt16 { get { return VarintBitConverter.ToInt16(VarIntData); } }
+       public int ToInt32 { get { return VarintBitConverter.ToInt32(VarIntData); } }
+       public long ToInt64 { get { return VarintBitConverter.ToInt64(VarIntData); } }
+
+       public ushort ToUInt16 { get { return VarintBitConverter.ToUInt16(VarIntData); } }
+       public uint ToUInt32 { get { return VarintBitConverter.ToUInt32(VarIntData); } }
+       public ulong ToUInt64 { get { return VarintBitConverter.ToUInt64(VarIntData); } }
        
        public static byte[] VarIntFromStream(Stream s)
        {
@@ -323,43 +390,6 @@ namespace MinecraftServer
                return new byte[0];
        }
        
-       public VarInt()
-       {
-           VarIntData = new byte[0];
-       }
-       public VarInt(Stream s)
-       {
-           VarIntData = VarIntFromStream(s);
-       }
-
-       public VarInt(Byte value)
-       {
-           SetValue(value);
-       }
-       public VarInt(Int16 value)
-       {
-           SetValue(value);
-       }
-       public VarInt(Int32 value)
-       {
-           SetValue(value);
-       }
-       public VarInt(Int64 value)
-       {
-           SetValue(value);
-       }
-       public VarInt(UInt16 value)
-       {
-           SetValue(value);
-       }
-       public VarInt(UInt32 value)
-       {
-           SetValue(value);
-       }
-       public VarInt(UInt64 value)
-       {
-           SetValue(value);
-       }
 
 
    }
