@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using ProtoBuf;
+
 using System.IO;
 using System.IO.Compression;
 using zlib;
@@ -14,15 +14,16 @@ namespace MinecraftServer
     public enum mcProtoStates { HandShake, Play }
     public enum mcProtoTargets { Server , Client }
 
-    public interface mcProto
+    public abstract class mcProto
     {
-        public void SendPacket(Stream s);
-        public void ReceivePacket();
-        public mcProto(mcProtoPacket Packet);
-        public mcProtoPacket Packet { get; set; }
+         public abstract void SendPacket(Stream s);
+         public abstract void ReceivePacket();
+
+         public mcProto() { }
+         public mcProto(mcProtoPacket Packet) { this.Packet = Packet; }
+         public mcProtoPacket Packet { get; set; }
 
     }
-
     public class mcProtoPacket
     {
 
@@ -196,6 +197,8 @@ namespace MinecraftServer
 
         }
 
+        public mcProto Packet { get; set; }
+
     }
 
     public class mcProtoHandshake : mcProto
@@ -218,7 +221,7 @@ namespace MinecraftServer
             this.Packet = Packet;
         }
 
-        public void SendPacket(Stream s)
+        public override void SendPacket(Stream s)
         {
 
             VarInt vi = new VarInt();
@@ -246,7 +249,7 @@ namespace MinecraftServer
 
         }
 
-        public void ReceivePacket()
+        public override void ReceivePacket()
         {
             MemoryStream ms = new MemoryStream(Packet.Data);
             VarInt vi = new VarInt(ms);
@@ -258,7 +261,7 @@ namespace MinecraftServer
 
         }
 
-        public mcProtoPacket Packet {get;set;}
+        
 
     }
 
@@ -267,7 +270,7 @@ namespace MinecraftServer
    public class mcProtoKeepAlive:mcProtoPacket
    {
        public int KeepAlive { get; set; }
-       public override void SendPacket(mcProtoPacket Packet,Stream s)
+       public void SendPacket(Stream s)
        {
 
            Data = VarintBitConverter.GetVarintBytes(KeepAlive);
