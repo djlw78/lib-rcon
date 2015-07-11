@@ -115,7 +115,6 @@ namespace MinecraftServer
             try
             {
                 NS.Write(dataout, 0, dataout.Length);
-
             }
             catch (Exception)
             {
@@ -210,9 +209,7 @@ namespace MinecraftServer
         public int RConPort { get; set; }
 
         TcpClient cli;
-        NetworkStream ns;
-
-     
+    
 
         Thread bgCommThread;
         Queue<RconPacket> cmdQue = new Queue<RconPacket>();
@@ -231,6 +228,7 @@ namespace MinecraftServer
         bool isFailed_Authorization = true;
         bool isReadyForCommands = false;
         bool isResponseFull = false;
+        bool isThreadStart = true;
 
         int sessionID = -1;
         /// <summary>
@@ -241,6 +239,8 @@ namespace MinecraftServer
         {
             cli = new TcpClient();
             bgCommThread = new Thread(Comms);
+            bgCommThread.IsBackground = true;
+
         }
 
         /// <summary>
@@ -304,7 +304,7 @@ namespace MinecraftServer
             try
             {
                 cli.Connect(RConHostAddress, port);
-                ns = cli.GetStream();
+               
             }
             catch (Exception)
             {
@@ -320,12 +320,12 @@ namespace MinecraftServer
 
 
             RconPacket auth = RconPacket.AuthPacket(Password, sessionID);
-            auth.SendToNetworkStream(ns);
+            auth.SendToNetworkStream(cli.GetStream());
 
             if (auth.IsBadPacket == false)
             {
                 RconPacket resp = new RconPacket();
-                resp.ReadFromNetworkSteam(ns);
+                resp.ReadFromNetworkSteam(cli.GetStream());
                 if (resp.IsBadPacket == false)
                 {
                     if (resp.SessionID == -1 && resp.ServerType == 2)
@@ -339,6 +339,9 @@ namespace MinecraftServer
                         isFailed_Connection = false;
                         isReadyForCommands = true;
                         isStarted = true;
+                       
+
+
                         bgCommThread.Start();
                         return true;
 
@@ -373,10 +376,14 @@ namespace MinecraftServer
             if (isStopping == true) return isStarted;
 
             isStopping = true;
-            bgCommThread.Join();
-            
+
+            if(isThreadStart == true)
+                bgCommThread.Join();
+
+            isThreadStart = false;
+           
             return isStarted;
-            
+
         }
         /// <summary>
         /// True if connected and active.
@@ -429,6 +436,7 @@ namespace MinecraftServer
             isFailed_Authorization = true;
 
             isReadyForCommands = false;
+            isThreadStart = false;
 
 
             sessionID = -1;
@@ -440,7 +448,8 @@ namespace MinecraftServer
             DateTime transmitLatch = DateTime.Now.AddMilliseconds(-1);
             Int32 dT = 200;
 
-            
+            isThreadStart = true;
+
             try
             {
 
@@ -468,7 +477,7 @@ namespace MinecraftServer
 
 
                             RconPacket resp = new RconPacket();
-                            resp.ReadFromNetworkSteam(ns);
+                            resp.ReadFromNetworkSteam(cli.GetStream());
 
                             if (resp.IsBadPacket == true)
                             {
@@ -505,7 +514,7 @@ namespace MinecraftServer
                     {
                         RconPacket Cmd = cmdQue.Dequeue();
 
-                        Cmd.SendToNetworkStream(ns);
+                        Cmd.SendToNetworkStream(cli.GetStream());
                         transmitLatch = DateTime.Now.AddMilliseconds(dT);
                     }
 
@@ -525,9 +534,10 @@ namespace MinecraftServer
 
         private void ShutDownComms()
         {
-            ns.Close();
-            cli.Close();
-            isConnected = false;
+            if (cli.Connected)
+                cli.Close();
+
+            isConnected = cli.Connected;
             isReadyForCommands = false;
 
         }
@@ -815,7 +825,7 @@ namespace MinecraftServer
 
             return r;
         }
-        public static List<string> LoadPlayersAndClose(TCPRcon r)
+        public static List<string> LoadPlayers(TCPRcon r, StringBuilder sb)
         {
            
             string[] list_players;
@@ -832,9 +842,11 @@ namespace MinecraftServer
                     list_players = list_cmd[1].Replace(" ", string.Empty).Split(',');
 
                 }
-                catch (Exception)
+                catch (Exception ee)
                 {
                     list_players = new string[] { "NO_ONE_ONLINE" };
+                    sb.AppendFormat(@"{0} => Connection:{1}, Network:{2}",ee.Message,r.FailedConnection,r.FailedNetwork);
+                    
                 }
 
 
@@ -844,6 +856,8 @@ namespace MinecraftServer
                 list_players = new string[] { "RCON_ERROR" };
             }
 
+
+                r.StopComms();
 
             return new List<string>(list_players);
 
