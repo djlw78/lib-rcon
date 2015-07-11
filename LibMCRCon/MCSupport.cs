@@ -374,8 +374,9 @@ namespace MinecraftServer
 
             isStopping = true;
             bgCommThread.Join();
+            
             return isStarted;
-
+            
         }
         /// <summary>
         /// True if connected and active.
@@ -806,6 +807,83 @@ namespace MinecraftServer
 
         }
 
+        
+        public static TCPRcon ActivateRcon(string Host, int port, string password)
+        {
+            var r = new TCPRcon(Host, port, password);
+            r.StartComms();
+
+            return r;
+        }
+        public static List<string> LoadPlayersAndClose(TCPRcon r)
+        {
+           
+            string[] list_players;
+
+
+            if (r.IsReadyForCommands == true)
+            {
+
+                try
+                {
+                    string resp = r.ExecuteCmd("list");
+
+                    string[] list_cmd = resp.Split(':');
+                    list_players = list_cmd[1].Replace(" ", string.Empty).Split(',');
+
+                }
+                catch (Exception)
+                {
+                    list_players = new string[] { "NO_ONE_ONLINE" };
+                }
+
+
+            }
+            else
+            {
+                list_players = new string[] { "RCON_ERROR" };
+            }
+
+
+            return new List<string>(list_players);
+
+        }
+        public static void TPPairToNexusFromPlayer(string TargetPlayer, string GiveToPlayer, TCPRcon r, StringBuilder sb)
+        {
+            MCHelper mh = new MCHelper();
+
+            if (r.IsReadyForCommands == true)
+            {
+                Voxel PointA = mh.PlayerLocation(r, sb, TargetPlayer);
+                if (PointA.IsValid == true)
+                {
+                    Voxel PointB = new Voxel(65, 0, 0);
+                    TPPairBlockKit(PointA, PointB, GiveToPlayer, r, sb);
+                }
+            }
+
+            
+        }
+        public static void TPPairBlockKit(Voxel PointA, Voxel PointB, string GiveToPlayer, TCPRcon r, StringBuilder sb)
+        {
+
+            Voxel[] RegionPair = new Voxel[] { Voxel.ToZone(PointA, 512), Voxel.ToZone(PointB, 512) };
+
+            string tpDestination = string.Format(@"give {0} minecraft:command_block 1 0 {{BlockEntityTag:{{Command:""tp @p {1} {2} {3}""}},display:{{Name:""{1} {2} {3}""}}}}", GiveToPlayer, PointA.X, PointA.Y, PointA.Z);
+            string tpReturn = string.Format(@"give {0} minecraft:command_block 1 0 {{BlockEntityTag:{{Command:""tp @p {1} {2} {3}""}},display:{{Name:""Return {1} {2} {3}""}}}}", GiveToPlayer, PointB.X, PointB.Y, PointB.Z);
+            string tpSign = string.Format(@"give {0} minecraft:sign 1 0", GiveToPlayer);
+            string tpButtons = string.Format(@"give {0} minecraft:stone_button 2 0", GiveToPlayer);
+
+
+
+            if (r.IsReadyForCommands == true)
+            {
+                sb.AppendFormat("<br />{0}", r.ExecuteCmd(tpDestination));
+                sb.AppendFormat("<br />{0}", r.ExecuteCmd(tpReturn));
+                sb.AppendFormat("<br />{0}", r.ExecuteCmd(tpSign));
+                sb.AppendFormat("<br />{0}", r.ExecuteCmd(tpButtons));
+            }
+        }
 
     }
 

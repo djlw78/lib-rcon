@@ -766,13 +766,12 @@ namespace MinecraftServer
         }
     }
 
-    
-
     public class Voxel
     {
-        
+
         int[] voxel;
 
+        public bool IsValid { get; set; }
         public int X { get { return voxel[1]; } set { voxel[1] = value; } }
         public int Z { get { return voxel[2]; } set { voxel[2] = value; } }
         public int Y { get { return voxel[0]; } set { voxel[0] = value; } }
@@ -781,14 +780,17 @@ namespace MinecraftServer
 
         public Voxel()
         {
-            
+
             voxel = new int[3];
+            IsValid = true;
+
         }
-        public Voxel(int y, int x, int z )
+        public Voxel(int y, int x, int z)
         {
             voxel[0] = y;
             voxel[1] = x;
             voxel[2] = z;
+            IsValid = true;
         }
 
         public static int ZoneAxis(int size, int axis)
@@ -803,7 +805,22 @@ namespace MinecraftServer
         {
             return (zoneAxis * size) + zoneAxisOffset;
         }
-        
+
+        public static Voxel ToZone(Voxel FromVoxel, int Size)
+        {
+            return new Voxel() { Y = FromVoxel.Y, X = Voxel.ZoneAxis(Size, FromVoxel.X), Z = Voxel.ZoneAxis(Size, FromVoxel.Z) };
+        }
+        public static Voxel ToOffset(Voxel FromVoxel, int Size)
+        {
+            return new Voxel() { Y = FromVoxel.Y, X = Voxel.ZoneOffsetAxis(Size, FromVoxel.X), Z = Voxel.ZoneOffsetAxis(Size, FromVoxel.Z) };
+        }
+        public static Voxel ToOffset(Voxel FromVoxel, int Size, int YSize)
+        {
+            return new Voxel() { Y = Voxel.ZoneOffsetAxis(YSize, FromVoxel.Y), X = Voxel.ZoneOffsetAxis(Size, FromVoxel.X), Z = Voxel.ZoneOffsetAxis(Size, FromVoxel.Z) };
+
+        }
+       
+
         public static int ZoneZXIndex(int size, int z, int x)
         {
             return (z * size) + x;
@@ -818,7 +835,7 @@ namespace MinecraftServer
             int vix = 3 < voxel.Length ? 3 : voxel.Length;
 
             for (int vi = 0; vi < vix; vi++)
-                result[vi] = ZoneOffsetAxis(size,voxel[vi]);
+                result[vi] = ZoneOffsetAxis(size, voxel[vi]);
 
         }
         public static void Zone(int[] result, int size, params int[] voxel)
@@ -826,9 +843,9 @@ namespace MinecraftServer
             int vix = 3 < voxel.Length ? 3 : voxel.Length;
 
             for (int vi = 0; vi < vix; vi++)
-                result[vi] = ZoneAxis(size, voxel[vi]); 
-        }        
-        
+                result[vi] = ZoneAxis(size, voxel[vi]);
+        }
+
         public static void ZoneVoxel(int[] result, int[] zone, int[] offset, int size)
         {
 
@@ -847,7 +864,7 @@ namespace MinecraftServer
         {
             return voxel;
         }
-    
+
 
         public static int ZoneVoxelXZ(int[] voxel, int size)
         {
