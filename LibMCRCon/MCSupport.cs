@@ -204,9 +204,19 @@ namespace MinecraftServer
     public class TCPRcon : Queue<RconPacket>
     {
 
-        public string MineCraftURL { get; set; }
+
+        public enum TCPState { IDLE, CONNECTING, CONNECTED, CLOSING, ABORTED };
+        public enum RConState { IDLE, AUTHENTICATE, READY, NETWORK_FAIL, AUTHENTICATE_FAIL };
+        public string LastTCPError { get; set; }
+
+        public string RConHost { get; set; }
         public string RConPass { get; set; }
         public int RConPort { get; set; }
+
+        public TCPState  StateTCP { get; set; }
+        public RConState StateRCon { get; set; }
+
+        protected bool AbortTCP { get; set; }
 
         TcpClient cli;
     
@@ -214,45 +224,24 @@ namespace MinecraftServer
         Thread bgCommThread;
         Queue<RconPacket> cmdQue = new Queue<RconPacket>();
 
-        string hostAddress;
-        int hostPort;
-        string hostPassword;
-
-
-        bool isConnected = false;
-        bool isStarted = false;
-        bool isStopping = false;
-        bool isFailed_Connection = false;
-        bool isFailed_Packet = false;
-        bool isFailed_Network = false;
-        bool isFailed_Authorization = true;
-        bool isReadyForCommands = false;
-        bool isResponseFull = false;
-        bool isThreadStart = true;
-
         int sessionID = -1;
         /// <summary>
         /// Default constructor, will still need RCon server url, password and port.
         /// </summary>
-        public TCPRcon()
-            : base()
+        public TCPRcon(): base()
         {
-            cli = new TcpClient();
-            bgCommThread = new Thread(Comms);
-            bgCommThread.IsBackground = true;
+
 
         }
-
         /// <summary>
         /// Create a TCPRcon connection.  Does not open on creation.
         /// </summary>
         /// <param name="MineCraftServer">DNS address of the rcon server.</param>
         /// <param name="port">Port RCon is listening to on the server.</param>
         /// <param name="password">Configured password for the RCon server.</param>
-        public TCPRcon(string MineCraftServer, int port, string password)
-            : this()
+        public TCPRcon(string host, int port, string password):base()
         {
-            MineCraftURL = MineCraftServer;
+            RConHost = host;
             RConPort = port;
             RConPass = password;
 
@@ -274,202 +263,204 @@ namespace MinecraftServer
         public TCPRcon CopyConnection()
         {
             
-            TCPRcon r = new TCPRcon();
-            if (r.StartComms(hostAddress, hostPort, hostPassword) == true)
-                return r;
+            TCPRcon r = new TCPRcon(RConHost,RConPort,RConPass);
+            r.StartComms();
 
-            return null;
+            return r;
         }
 
-        private bool StartComms(String RConHostAddress, int port, String Password)
-        {
-            Random r = new Random();
-
-            if (isStarted == true)
-            {
-                //shutdown and restart
-                StopComms();
-
-            }
-
-            ResetState();
-
-            isStarted = true;
-            sessionID = r.Next(1, int.MaxValue) + 1;
-
-            hostAddress = RConHostAddress;
-            hostPassword = Password;
-            hostPort = port;
-
-            try
-            {
-                cli.Connect(RConHostAddress, port);
-               
-            }
-            catch (Exception)
-            {
-                isFailed_Connection = true;
-                isStarted = false;
-                return false;
-            }
-
-            isConnected = true;
-
-
-            //Initiate authentication sequence.
-
-
-            RconPacket auth = RconPacket.AuthPacket(Password, sessionID);
-            auth.SendToNetworkStream(cli.GetStream());
-
-            if (auth.IsBadPacket == false)
-            {
-                RconPacket resp = new RconPacket();
-                resp.ReadFromNetworkSteam(cli.GetStream());
-                if (resp.IsBadPacket == false)
-                {
-                    if (resp.SessionID == -1 && resp.ServerType == 2)
-                    {
-                        isFailed_Authorization = true;
-
-                    }
-                    else
-                    {
-                        isFailed_Authorization = false;
-                        isFailed_Connection = false;
-                        isReadyForCommands = true;
-                        isStarted = true;
-                       
-
-
-                        bgCommThread.Start();
-                        return true;
-
-                    }
-
-                }
-                else
-                    isFailed_Packet = true;
-            }
-            else
-                isFailed_Packet = true;
-
-
-            isReadyForCommands = false;
-            ShutDownComms();
-            return false;
-        }
         /// <summary>
         /// Start the asynchronous communication process.
         /// </summary>
         /// <returns>True of successfully started, otherwise false.</returns>
         public bool StartComms()
         {
-            return StartComms(MineCraftURL, RConPort, RConPass);
+            if (bgCommThread.IsAlive)
+            {
+                AbortTCP = true;
+                bgCommThread.Join();
+
+            }
+
+            cli = new TcpClient();
+            bgCommThread = new Thread(ConnectAndProcess);
+            bgCommThread.IsBackground = true;
+
+            StateTCP = TCPState.IDLE;
+            StateRCon = RConState.IDLE;
+
+            bgCommThread.Start();
+
+            TimeCheck tc = new TimeCheck(30000);
+            while(tc.Expired == false)
+            {
+                if (StateTCP == TCPState.CONNECTED)
+                    if (StateRCon == RConState.READY)
+                        return true;
+
+                if (AbortTCP == true)
+                    break;
+
+                Thread.Sleep(1);
+            }
+
+            if (StateTCP == TCPState.CONNECTED)
+                if (StateRCon == RConState.READY)
+                    return true;
+
+            if (cli.Connected == true)
+                cli.Close();
+
+            AbortTCP = true;
+            if (bgCommThread.IsAlive)
+                bgCommThread.Join();
+
+            cli.Close();
+            return false;
+
+
         }
         /// <summary>
         /// Stop communication and close all connections.  Will block until complete or timed out.
         /// </summary>
         /// <returns>Returns true if closed without error, false if timed out or errors encountered.</returns>
-        public bool StopComms()
+      
+        public void StopComms()
         {
-            if (isStopping == true) return isStarted;
 
-            isStopping = true;
+           StateTCP = TCPState.CLOSING;
+           AbortTCP = true;
 
-            if(isThreadStart == true)
+           if(bgCommThread.IsAlive)
                 bgCommThread.Join();
 
-            isThreadStart = false;
-           
-            return isStarted;
+           StateRCon = RConState.IDLE;
+
 
         }
         /// <summary>
         /// True if connected and active.
         /// </summary>
-        public bool IsConnected { get { return isConnected; } }
+        public bool IsConnected { get { return cli.Connected; } }
         /// <summary>
         /// True if the asynchronous thread is running.
         /// </summary>
-        public bool IsStarted { get { return isStarted; } }
-        /// <summary>
-        /// True if in the process of shutting down.
-        /// </summary>
-        public bool IsStopping { get { return isStopping; } }
+        public bool IsStarted { get { return bgCommThread.IsAlive; } }
         /// <summary>
         /// True if the connection is open and the queue is ready for commands.
         /// </summary>
-        public bool IsReadyForCommands { get { return isReadyForCommands; } }
-        /// <summary>
-        /// True if response buffer has not been emptied.  500 Responses will be cached in the order received.
-        /// Any more resposes will be silently discarded.
-        /// </summary>
-        public bool IsResponseFull { get { return isResponseFull; } }
-
-        /// <summary>
-        /// If something goes wrong, this indicates a failed connection was detected.
-        /// </summary>
-        public bool FailedConnection { get { return isFailed_Connection; } }
-        /// <summary>
-        /// If a bad packet was detected.
-        /// </summary>
-        public bool FailedPacket { get { return isFailed_Packet; } }
-        /// <summary>
-        /// If the network connection failed, unexpected closing and or network time outs.
-        /// </summary>
-        public bool FailedNetwork { get { return isFailed_Network; } }
-        /// <summary>
-        /// When opening up the connection and creating a session, the RCon server rejected the Authentication.  Password is probably incorrect.
-        /// </summary>
-        public bool FailedAuth { get { return isFailed_Authorization; } }
-
-
-        private void ResetState()
+        public bool IsReadyForCommands { get { return StateTCP == TCPState.CONNECTED && StateRCon == RConState.READY; } }
+     
+        private void ConnectAndProcess()
         {
-            isConnected = false;
-            isStarted = false;
-            isStopping = false;
-            isFailed_Connection = false;
-            isFailed_Packet = false;
+            DateTime transmitLatch = DateTime.Now.AddMilliseconds(-1);
+            Random r = new Random();
 
-            isFailed_Authorization = true;
+            sessionID = r.Next(1, int.MaxValue) + 1;
 
-            isReadyForCommands = false;
-            isThreadStart = false;
+            StateTCP = TCPState.CONNECTING;
+            StateRCon = RConState.IDLE;
+
+            AbortTCP = false;
 
 
-            sessionID = -1;
+            try
+            {
+                cli.Connect(RConHost, RConPort);
+                StateTCP = TCPState.CONNECTED;
+                StateRCon = RConState.AUTHENTICATE;
+               
+                RconPacket auth = RconPacket.AuthPacket(RConPass, sessionID);
+                auth.SendToNetworkStream(cli.GetStream());
+
+                if (auth.IsBadPacket == false)
+                {
+                    RconPacket resp = new RconPacket();
+                    resp.ReadFromNetworkSteam(cli.GetStream());
+
+                    if (resp.IsBadPacket == false)
+                    {
+                        if (resp.SessionID == -1 && resp.ServerType == 2)
+                            StateRCon = RConState.AUTHENTICATE_FAIL;
+                        else
+                            StateRCon = RConState.READY;
+                    }
+                    else
+                        StateRCon = RConState.NETWORK_FAIL;
+                }
+
+
+                if (StateTCP == TCPState.CONNECTED)
+                {
+                    if (cli.Connected == false)
+                    {
+                        StateTCP = TCPState.ABORTED;
+                        AbortTCP = true;
+
+                    }
+
+                    if (StateRCon != RConState.READY)
+                    {
+                        AbortTCP = true;
+                        StateTCP = TCPState.ABORTED;
+                        StateRCon = RConState.AUTHENTICATE_FAIL;
+                        return;
+                    }
+                }
+
+            }
+            catch (Exception e)
+            {
+                LastTCPError = e.Message;
+                AbortTCP = true;
+                StateRCon = RConState.NETWORK_FAIL;
+            }
+
+            if (AbortTCP == true)
+            {
+                if (cli.Connected == true)
+                {
+                    cli.Close();
+                    StateTCP = TCPState.ABORTED;
+                }
+                return;
+            }
+                    
+           
+            Comms();
+
+            if (cli.Connected == true)
+                cli.Close();
+
+            StateTCP = TCPState.ABORTED;
+
         }
 
         private void Comms()
         {
-
-            DateTime transmitLatch = DateTime.Now.AddMilliseconds(-1);
+            
+            TimeCheck tc = new TimeCheck();
             Int32 dT = 200;
 
-            isThreadStart = true;
-
+            cli.SendTimeout = 5000;
+            cli.ReceiveTimeout = 20000;
+            
             try
             {
 
-              if (cli.Connected == false) //Not connected, shut it down...
+                if (cli.Connected == false) //Not connected, shut it down...
                 {
-                    isFailed_Network = true;
-                    isStopping = true;
-                    isStarted = false;
-
-                    ShutDownComms();
-                    return;
-
+                    StateRCon = RConState.NETWORK_FAIL;
+                    StateTCP = TCPState.CLOSING;
+                    AbortTCP = true;
                 }
 
-                cli.SendTimeout = 5000;
-                cli.ReceiveTimeout = 20000;
 
-                while (isStopping == false)
+                tc.Reset(dT);
+
+                while (AbortTCP == false)
                 {
-
+                    
                     do
                     {
                         if (cli.Available > 0)
@@ -481,65 +472,81 @@ namespace MinecraftServer
 
                             if (resp.IsBadPacket == true)
                             {
-                                isStopping = true;
-                                isFailed_Packet = true;
+                                StateTCP = TCPState.ABORTED;
+                                StateRCon = RConState.NETWORK_FAIL;
+                                AbortTCP = true;
                                 break;
 
                             }
 
                             if (Count > 500)
-                                isResponseFull = true;
+                            {
+                                StateRCon = RConState.IDLE;
+                                StateTCP = TCPState.ABORTED;
+                                AbortTCP = true;
+                                break;
+                            }
                             else
                             {
 
                                 Enqueue(resp);
-                                isResponseFull = false;
+                                StateRCon = RConState.READY;
                             }
 
-                            if (DateTime.Now < transmitLatch)
-                                transmitLatch = DateTime.Now.AddMilliseconds(dT);
+                            if (tc.Expired == false)
+                                tc.Reset(dT);
                         }
 
                         Thread.Sleep(1);
-                        
 
-                    } while (transmitLatch > DateTime.Now || cli.Available > 0);
 
-                    if (isStopping == true)
+                    } while (tc.Expired == false || cli.Available > 0);
+
+                    if (AbortTCP == true)
                         break;
 
-                    transmitLatch = DateTime.Now.AddMilliseconds(-1);
 
                     if (cmdQue.Count > 0)
                     {
                         RconPacket Cmd = cmdQue.Dequeue();
 
                         Cmd.SendToNetworkStream(cli.GetStream());
-                        transmitLatch = DateTime.Now.AddMilliseconds(dT);
+                        tc.Reset(dT);
                     }
 
-                    Thread.Sleep(1);                   
+                    Thread.Sleep(1);
                 }
             }
 
-            catch (Exception)
+            catch (Exception ee)
             {
-                isStopping = true;
-                isFailed_Network = true;
+                AbortTCP = true;
+                LastTCPError = ee.Message;
+                StateTCP = TCPState.ABORTED;
+                StateRCon = RConState.NETWORK_FAIL;
             }
 
-            isStarted = false;
-            ShutDownComms();
+
+            if (cli.Connected == true)
+                cli.Close();
+
+
         }
 
         private void ShutDownComms()
         {
-            if (cli.Connected)
+
+            AbortTCP = true;
+            if (bgCommThread.IsAlive)
+                bgCommThread.Join();
+            else
+            {
+                StateTCP = TCPState.IDLE;
+                StateRCon = RConState.IDLE;
+            }
+
+            if (cli.Connected == true)
                 cli.Close();
-
-            isConnected = cli.Connected;
-            isReadyForCommands = false;
-
         }
         /// <summary>
         /// Execute a command and wait for a response, blocking main calling thread.  Once response given return.
@@ -559,28 +566,29 @@ namespace MinecraftServer
         public string ExecuteCmd(string Cmd)
         {
 
+            if (AbortTCP == true)
+                return "RCON_ABORTED";
+
             MinecraftServer.RconPacket p;
             StringBuilder sb = new StringBuilder();
 
-            DateTime ch;
+            TimeCheck tc = new TimeCheck();
 
-            ch = DateTime.Now.AddMilliseconds(5000);
             QueCommand(Cmd);
-
 
             while (Count == 0)
             {
                 Thread.Sleep(100);
-                if (DateTime.Now > ch) break;
-                if (IsStopping) break;
+                if (AbortTCP == true) break;
+                if (tc.Expired == true) break;
             }
 
             while (Count > 0)
             {
-                if (IsStopping) break;
-                
                 p = Dequeue();
                 sb.Append(p.Response);
+
+                if (AbortTCP == true) break;
             }
 
             return sb.ToString();
@@ -590,6 +598,8 @@ namespace MinecraftServer
 
     }
     
+
+
     //!Track time passing using computer time.
     public class TimeCheck
     {
@@ -661,17 +671,11 @@ namespace MinecraftServer
             else
                 isbusy = true;
 
-
-            if (r.StartComms() == true)
-            {
-
                 try
                 {
 
                     string resp = "";
                     bool safeTp = false;
-
-
 
                     r.ExecuteCmd("tell {0} To lands unknown you go!!!", player);
                     r.ExecuteCmd("gamemode sp {0}", player);
@@ -765,8 +769,6 @@ namespace MinecraftServer
                 }
 
 
-            }
-
             r.StopComms();
             isbusy = false;
         }
@@ -821,9 +823,10 @@ namespace MinecraftServer
         public static TCPRcon ActivateRcon(string Host, int port, string password)
         {
             var r = new TCPRcon(Host, port, password);
-            r.StartComms();
 
+            r.StartComms();
             return r;
+
         }
         public static List<string> LoadPlayers(TCPRcon r, StringBuilder sb)
         {
@@ -845,7 +848,7 @@ namespace MinecraftServer
                 catch (Exception ee)
                 {
                     list_players = new string[] { "NO_ONE_ONLINE" };
-                    sb.AppendFormat(@"{0} => Connection:{1}, Network:{2}",ee.Message,r.FailedConnection,r.FailedNetwork);
+                    sb.AppendFormat(@"{0} => Connection:{1}, Network:{2}",ee.Message,r.LastTCPError,r.StateTCP,r.StateRCon);
                     
                 }
 
