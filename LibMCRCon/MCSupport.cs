@@ -217,6 +217,9 @@ namespace MinecraftServer
         public RConState StateRCon { get; set; }
 
         protected bool AbortTCP { get; set; }
+        public bool ConnectTimedOut { get; set; }
+        public bool Connecting { get; set; }
+        public int ResetConnectAttemps { get; set; }
 
         TcpClient cli;
     
@@ -275,43 +278,61 @@ namespace MinecraftServer
         /// <returns>True of successfully started, otherwise false.</returns>
         public bool StartComms()
         {
-            if (bgCommThread.IsAlive)
-            {
-                AbortTCP = true;
-                bgCommThread.Join();
+            if (bgCommThread != null)
+                if (bgCommThread.IsAlive)
+                {
+                    AbortTCP = true;
+                    bgCommThread.Join();
 
+                }
+
+            Connecting = true;
+            TimeCheck tc = new TimeCheck(3000);
+
+            for (int x = 0; x < 10; x++)
+            {
+                ResetConnectAttemps = x;
+
+                cli = new TcpClient();
+                bgCommThread = new Thread(ConnectAndProcess);
+                bgCommThread.IsBackground = true;
+
+                StateTCP = TCPState.IDLE;
+                StateRCon = RConState.IDLE;
+
+                bgCommThread.Start();
+
+                while (tc.Expired == false)
+                {
+                    if (StateTCP == TCPState.CONNECTED)
+                        if (StateRCon == RConState.READY)
+                            return true;
+
+
+                    Thread.Sleep(100);
+
+                }
+                if (Connecting == true)
+                    bgCommThread.Abort();
+                else
+                    break;
             }
 
-            cli = new TcpClient();
-            bgCommThread = new Thread(ConnectAndProcess);
-            bgCommThread.IsBackground = true;
-
-            StateTCP = TCPState.IDLE;
-            StateRCon = RConState.IDLE;
-
-            bgCommThread.Start();
-
-            TimeCheck tc = new TimeCheck(30000);
-            while(tc.Expired == false)
+            tc.Reset(10000);
+            
+            do
             {
                 if (StateTCP == TCPState.CONNECTED)
                     if (StateRCon == RConState.READY)
                         return true;
 
-                if (AbortTCP == true)
-                    break;
+                Thread.Sleep(100);
+            } while (tc.Expired == false);
 
-                Thread.Sleep(1);
-            }
-
-            if (StateTCP == TCPState.CONNECTED)
-                if (StateRCon == RConState.READY)
-                    return true;
-
-            if (cli.Connected == true)
-                cli.Close();
-
+            ConnectTimedOut = true;
             AbortTCP = true;
+
+
             if (bgCommThread.IsAlive)
                 bgCommThread.Join();
 
@@ -323,18 +344,18 @@ namespace MinecraftServer
         /// <summary>
         /// Stop communication and close all connections.  Will block until complete or timed out.
         /// </summary>
-        /// <returns>Returns true if closed without error, false if timed out or errors encountered.</returns>
-      
+        
         public void StopComms()
         {
 
-           StateTCP = TCPState.CLOSING;
-           AbortTCP = true;
+            StateTCP = TCPState.CLOSING;
+            AbortTCP = true;
+            if (bgCommThread != null)
+                if (bgCommThread.IsAlive)
+                    bgCommThread.Join();
 
-           if(bgCommThread.IsAlive)
-                bgCommThread.Join();
-
-           StateRCon = RConState.IDLE;
+            bgCommThread = null;
+            StateRCon = RConState.IDLE;
 
 
         }
@@ -366,7 +387,10 @@ namespace MinecraftServer
 
             try
             {
+                
                 cli.Connect(RConHost, RConPort);
+                Connecting = false;
+
                 StateTCP = TCPState.CONNECTED;
                 StateRCon = RConState.AUTHENTICATE;
                
@@ -414,6 +438,7 @@ namespace MinecraftServer
                 LastTCPError = e.Message;
                 AbortTCP = true;
                 StateRCon = RConState.NETWORK_FAIL;
+                Connecting = false;
             }
 
             if (AbortTCP == true)
@@ -671,6 +696,8 @@ namespace MinecraftServer
             else
                 isbusy = true;
 
+            if (r.IsReadyForCommands)
+            {
                 try
                 {
 
@@ -746,8 +773,6 @@ namespace MinecraftServer
                     if (safeTp == false)
                     {
 
-
-
                         sb.AppendFormat(@"<br/>{0} No safe landing found, return to nexus", DateTime.Now);
                         r.ExecuteCmd("tell {0} No safe tp found, returned to nexus", player);
                         r.ExecuteCmd("tp {0} 0 65 0", player);
@@ -767,9 +792,8 @@ namespace MinecraftServer
                 {
                     sb.AppendFormat(@"<br/>{0} Unexpected error occured in processing safe teleport", DateTime.Now);
                 }
+            }
 
-
-            r.StopComms();
             isbusy = false;
         }
         /// <summary>
@@ -786,40 +810,46 @@ namespace MinecraftServer
 
             Voxel pV = new Voxel();
             string result;
-
-            try
+            if (r.IsReadyForCommands)
             {
-                
-                result = r.ExecuteCmd(string.Format("tp {0} ~ ~ ~", player));
-                
-                sb.AppendFormat("{0}: {1}", player, result);
-
-                //!Filter output, strip out response language and break out X,Y,Z coordinates
-                string[] data = result.Split(new string[] {"to"}, StringSplitOptions.RemoveEmptyEntries);
-                string[] tpdata = data[1].Split(',');
-
                 try
                 {
-                    pV.X =(int) float.Parse(tpdata[0]);
-                    pV.Y = (int) float.Parse(tpdata[1]);
-                    pV.Z = (int) float.Parse(tpdata[2]);
+
+                    result = r.ExecuteCmd(string.Format("tp {0} ~ ~ ~", player));
+
+                    sb.AppendFormat("{0}: {1}", player, result);
+
+                    //!Filter output, strip out response language and break out X,Y,Z coordinates
+                    string[] data = result.Split(new string[] { "to" }, StringSplitOptions.RemoveEmptyEntries);
+                    string[] tpdata = data[1].Split(',');
+
+                    try
+                    {
+                        pV.X = (int)float.Parse(tpdata[0]);
+                        pV.Y = (int)float.Parse(tpdata[1]);
+                        pV.Z = (int)float.Parse(tpdata[2]);
+                    }
+                    catch (Exception)
+                    {
+                        sb.AppendLine("Error in parsing player x,y,z");
+                        pV.IsValid = false;
+                    }
+
                 }
-                catch(Exception)
+                catch (Exception e)
                 {
-                    sb.AppendLine("Error in parsing player x,y,z");
+                    sb.AppendFormat("Error in locating player:{0}", e.Message);
+                    pV.IsValid = false;
                 }
-  
+                
+
             }
-            catch(Exception e)
-            {
-                sb.AppendFormat("Error in locating player:{0}", e.Message);
-            }
+            else
+                pV.IsValid = false;
 
             return pV;
 
         }
-
-        
         public static TCPRcon ActivateRcon(string Host, int port, string password)
         {
             var r = new TCPRcon(Host, port, password);
@@ -858,9 +888,7 @@ namespace MinecraftServer
             {
                 list_players = new string[] { "RCON_ERROR" };
             }
-
-
-                r.StopComms();
+        
 
             return new List<string>(list_players);
 
