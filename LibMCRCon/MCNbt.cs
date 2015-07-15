@@ -1587,3 +1587,113 @@ namespace MinecraftServer
 
   
 }
+namespace MinecraftVoxelOrdinates
+{
+    public class Voxel
+    {
+
+        public int[] V { get; internal  set; }
+
+        public Voxel() {V = new int[3] { 0, 0, 0 };}
+        public Voxel (int y, int x, int z) { V = new int[3] { y, x, z }; }
+        public Voxel(Voxel Voxel) { this.V = new int[3] { Voxel.Y, Voxel.X, Voxel.Z }; }
+
+        public int X { get { return V[1]; } set { V[1] = value; } }
+        public int Z { get { return V[2]; } set { V[2] = value; } }
+        public int Y { get { return V[0]; } set { V[0] = value; } }
+
+        public static int Zone(int Size, int Axis)
+        {
+            return Axis < 0 ? -((((Axis * -1) - 1) / Size) + 1) : Axis / Size;
+        }
+        public static int Offset(int Size, int Axis)
+        {
+            return Axis < 0 ? Size - ((Axis * -1) - ((((Axis * -1) - 1) / Size) * Size)) : Axis - ((Axis / Size) * Size);
+        }
+        public static int World(int Size, int Zone, int Offset)
+        {
+            return (Zone * Size) + Offset;
+        }
+    }
+    
+    public class ZoneOrdinate:Voxel
+    {
+        public new Voxel Zone { get; internal set; }
+        public new Voxel Offset { get; internal set; }
+
+        public ZoneOrdinate()
+        {
+            V = new int[3] { 1, 1, 1 };
+            Zone = new Voxel(0, 0, 0);
+            Offset = new Voxel(0, 0, 0);
+        }
+        public ZoneOrdinate(int ySize, int xSize, int zSize, int y, int x, int z)
+        {
+            V = new int[3] { ySize, xSize, zSize };
+            Zone = NewZone(y, x, z);
+            Offset = NewOffset(y, x, z);
+        }
+        public ZoneOrdinate(int ySize, int xSize, int zSize, Voxel WorldVoxel)
+        {
+            V = new int[3] { ySize, xSize, zSize };
+            Zone = NewZone(WorldVoxel);
+            Offset = NewOffset(WorldVoxel);
+        }
+
+        public ZoneOrdinate(Voxel ZoneSize, Voxel WorldVoxel)
+        {
+            V = new int[3] { ZoneSize.Y, ZoneSize.X, ZoneSize.Z };
+            Zone = NewZone(WorldVoxel);
+            Offset = NewOffset(WorldVoxel);
+        }
+        public ZoneOrdinate(Voxel ZoneSize,int y, int x, int z)
+        {
+            V = new int[3] { ZoneSize.Y, ZoneSize.X, ZoneSize.Z };
+            Zone = NewZone(y, x, z);
+            Offset = NewZone(y, x, z);
+
+        }
+
+        public ZoneOrdinate NewZoneOrdinate(Voxel WorldVoxel) { return new ZoneOrdinate(this, WorldVoxel); }
+        public ZoneOrdinate NewZoneOrdinate(int y, int x, int z) { return new ZoneOrdinate(this, x, y, z); }
+        
+        public Voxel NewZone(Voxel WorldVoxel) { return new Voxel(Voxel.Zone(Y, WorldVoxel.Y), Voxel.Zone(X, WorldVoxel.X), Voxel.Zone(Z, WorldVoxel.Z)); }
+        public Voxel NewZone(int y, int x, int z) { return new Voxel(Voxel.Zone(this.Y, y), Voxel.Zone(this.X, x), Voxel.Zone(this.Z, z)); }
+        
+        public Voxel NewOffset(Voxel WorldVoxel) { return new Voxel(Voxel.Offset(Y, WorldVoxel.Y), Voxel.Offset(X, WorldVoxel.X), Voxel.Offset(Z, WorldVoxel.Z)); }
+        public Voxel NewOffset(int y, int x, int z) { return new Voxel(Voxel.Offset(this.Y, y), Voxel.Offset(this.X, x), Voxel.Offset(this.Z, z)); }
+
+        public Voxel WorldVoxel() { return new Voxel(Voxel.World(Y, Zone.Y, Offset.Y), Voxel.World(X, Zone.X, Offset.X), Voxel.World(Z, Zone.Z, Offset.Z)); }
+        public Voxel WorldVoxel(int OffsetX, int OffsetZ) { return new Voxel(Voxel.World(Y, Zone.Y, Offset.Y), Voxel.World(X, Zone.X, OffsetX), Voxel.World(Z, Zone.Z, OffsetZ)); }
+
+        public int WorldY { get { return Voxel.World(Y, Zone.Y, Offset.Y); } }
+        public int WorldX { get { return Voxel.World(X, Zone.X, Offset.X); } }
+        public int WorldZ { get { return Voxel.World(Z, Zone.Z, Offset.Z); } }
+
+    }
+
+    public class MineCraftOrdinates:Voxel
+    {
+        
+        public ZoneOrdinate Region { get; internal set; }
+        public ZoneOrdinate Chunk { get; internal set; }
+        public ZoneOrdinate Section { get; internal set; }
+
+        public MineCraftOrdinates():base(0,0,0)
+        {
+            
+            Region = new ZoneOrdinate(16, 512, 512,0,0,0);
+            Chunk = new ZoneOrdinate(32, 16, 16, 0, 0, 0);
+
+
+        }
+        
+        public MineCraftOrdinates(int y, int x, int z):base(y,x,z)
+        {
+            Region = new ZoneOrdinate(16, 512, 512, y, x, z);
+            Chunk = new ZoneOrdinate()
+        }
+
+
+    }
+}   
