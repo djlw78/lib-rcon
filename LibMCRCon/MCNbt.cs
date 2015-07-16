@@ -791,20 +791,20 @@ namespace MinecraftServer
             ShouldLoadChunk = true;
         }
 
-        public void WorldAlignment(params int[] WorldVoxel)
+        public void WorldAlignment(int y, int x, int z)
         {
-            Y = WorldVoxel[0];
-            X = WorldVoxel[1];
-            Z = WorldVoxel[2];
+            Y = y;
+            X = x;
+            Z = z;
 
             Chunk.Voxel = Offset;
         }
-
-        public void RegionAlignment(params int[] RegionVoxel)
+        public void RegionAlignment(int y, int x, int z)
         {
-            ZoneOrdinates(RegionVoxel[0], RegionVoxel[1], RegionVoxel[2]);
+            ZoneOrdinates(y, x, z);
             Chunk.Voxel = Offset;
         }
+
 
 
         private void CheckChunkLoad(RegionMCA mca)
@@ -1331,7 +1331,7 @@ namespace MinecraftServer
             return (Zone * Size) + Offset;
         }       
         
-        public int[] V { get; internal  set; }
+        public int[] V { get; set; }
 
         public Voxel() { V = new int[3] { 0, 0, 0 }; IsValid = true; }
         public Voxel(int y, int x, int z) { V = new int[3] { y, x, z }; IsValid = true; }
@@ -1339,13 +1339,21 @@ namespace MinecraftServer
         
         public void SetVoxel(int y, int x, int z)
         {
-            V = new int[3] { x, y, z };
+            Y = y;
+            X = x;
+            Z = z;
         }
         public void SetVoxel(Voxel Voxel)
         {
-            V = new int[3] { Voxel.Y, Voxel.X, Voxel.Z };
+           Y = Voxel.Y;
+           X = Voxel.X;
+           Z = Voxel.Z;
         }
-
+        public void MergeVoxel(Voxel Voxel)
+        {
+            V = Voxel.V;
+        }
+       
         public int X { get { return V[1]; } set { V[1] = value; } }
         public int Z { get { return V[2]; } set { V[2] = value; } }
         public int Y { get { return V[0]; } set { V[0] = value; } }
@@ -1379,10 +1387,10 @@ namespace MinecraftServer
         public bool IsValid { get; set; }
 
     }
+
     public class ZoneVoxel:Voxel
     {
         public int[] Dimensions { get; internal set; }
-
         public ZoneVoxel() : base(0, 0, 0) { Dimensions = new int[3] { int.MaxValue, int.MaxValue, int.MaxValue }; }
         public ZoneVoxel(int y, int x, int z) : base(y, x, z) { Dimensions = new int[3] { int.MaxValue, int.MaxValue, int.MaxValue }; }
         public ZoneVoxel(int y, int x, int z, int ySize, int xSize, int zSize) : base(y, x, z) { Dimensions = new int[3] { ySize, xSize, zSize }; }
@@ -1404,13 +1412,8 @@ namespace MinecraftServer
         public ZoneVoxel ZoneVoxelByOffsetOrdinates(int y, int x, int z)
         {
             return new ZoneVoxel(Axis(Dimensions[0], ZoneY(Dimensions[0]), y), Axis(Dimensions[1], ZoneX(Dimensions[1]), x), Axis(Dimensions[2], ZoneZ(Dimensions[2]), z));
-        }    
-       
+        }
 
-
-        public new int ZoneX { get { return ZoneX(Dimensions[1]); } set { V[1] = Axis(Dimensions[1], value, 0); } }
-        public new int ZoneY { get { return ZoneY(Dimensions[0]); } set { V[0] = Axis(Dimensions[0], value, 0); } }
-        public new int ZoneZ { get { return ZoneZ(Dimensions[2]); } set { V[2] = Axis(Dimensions[2], value, 0); } }
         public Voxel Zone
         {
             get
@@ -1424,17 +1427,6 @@ namespace MinecraftServer
                 V[2] = Axis(Dimensions[2], value.Z, 0);
             }
         }
-        public void ZoneOrdinates(int y, int x, int z)
-        {
-            ZoneY = y;
-            ZoneX = x;
-            ZoneZ = z;
-        }
-        
-        public new int OffsetX { get { return OffsetX(Dimensions[1]); } set { V[1] = Axis(Dimensions[1], ZoneX(Dimensions[1]), value); } }
-        public new int OffsetY { get { return OffsetY(Dimensions[0]); } set { V[0] = Axis(Dimensions[0], ZoneY(Dimensions[0]), value); } }
-        public new int OffsetZ { get { return OffsetZ(Dimensions[2]); } set { V[2] = Axis(Dimensions[2], ZoneZ(Dimensions[2]), value); } }
-       
         public Voxel Offset
         {
             get
@@ -1448,6 +1440,24 @@ namespace MinecraftServer
                 V[2] = Axis(Dimensions[2], ZoneZ, value.Z);
             }
         }
+        public Voxel Voxel { get { return this; } set { V[0] = value.V[0]; V[1] = value.V[1]; V[2] = value.V[2]; } }
+
+        public new int ZoneX { get { return ZoneX(Dimensions[1]); } set { V[1] = Axis(Dimensions[1], value, 0); } }
+        public new int ZoneY { get { return ZoneY(Dimensions[0]); } set { V[0] = Axis(Dimensions[0], value, 0); } }
+        public new int ZoneZ { get { return ZoneZ(Dimensions[2]); } set { V[2] = Axis(Dimensions[2], value, 0); } }
+       
+        
+        
+        public new int OffsetX { get { return OffsetX(Dimensions[1]); } set { V[1] = Axis(Dimensions[1], ZoneX(Dimensions[1]), value); } }
+        public new int OffsetY { get { return OffsetY(Dimensions[0]); } set { V[0] = Axis(Dimensions[0], ZoneY(Dimensions[0]), value); } }
+        public new int OffsetZ { get { return OffsetZ(Dimensions[2]); } set { V[2] = Axis(Dimensions[2], ZoneZ(Dimensions[2]), value); } }
+
+        public void ZoneOrdinates(int y, int x, int z)
+        {
+            ZoneY = y;
+            ZoneX = x;
+            ZoneZ = z;
+        }
         public void OffsetOrdinates(int y, int x, int z)
         {
             OffsetY = y;
@@ -1455,7 +1465,8 @@ namespace MinecraftServer
             OffsetZ = z;
         }
 
-        public Voxel Voxel { get { return new Voxel(this); } set { V[0] = value.V[0]; V[1] = value.V[1]; V[2] = value.V[2]; } }
+
+        
 
 
     }
@@ -1475,6 +1486,7 @@ namespace MinecraftServer
         public static int ChunkZXidx(ZoneVoxel Chunk) { return (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
         public static int ChunkBlockPos(ZoneVoxel Chunk) { return (Chunk.OffsetY * 16 * 16) + (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
         
+
     }
 
    
