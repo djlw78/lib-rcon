@@ -782,7 +782,7 @@ namespace MinecraftServer
         { 
             get
             {
-                if (lastRX != Region.ZoneX || lastRZ != Region.ZoneZ)
+                if (lastRX != ZoneX || lastRZ != ZoneZ)
                 {
                     ShouldLoadChunk = false;
                     return true;
@@ -799,8 +799,8 @@ namespace MinecraftServer
                 }
                 else
                 {
-                    lastRX = Region.ZoneX;
-                    lastRZ = Region.ZoneZ;
+                    lastRX = ZoneX;
+                    lastRZ = ZoneZ;
                 }
             }
         }
@@ -811,13 +811,13 @@ namespace MinecraftServer
 
         public void WorldAlignment(int y, int x, int z)
         {
-           Region.SetVoxel(y, x, z);
-           UpdateChunk();
+            UpdateVoxel(y, x, z);
 
         }
         public void RegionAlignment(int y, int x, int z)
         {
-            Chunk.SetVoxel(y, x, z);
+            Chunk.UpdateVoxel(y, x, z);
+            ResetVoxel();
             UpdateRegion();
         }
 
@@ -989,7 +989,7 @@ namespace MinecraftServer
             
             if (R != null)
             {
-                Voxel Zone = R.Region.Zone;
+                Voxel Zone = R.Zone;
 
                 if (lastX != Zone.X || lastZ != Zone.Z)
                 {
@@ -1064,7 +1064,7 @@ namespace MinecraftServer
 
     public class NbtChunk
     {
-        public ZoneVoxel Chunk { get; set; }
+        
 
         public NbtInt xPos { get; private set; }
         public NbtInt zPos { get; private set; }
@@ -1097,7 +1097,6 @@ namespace MinecraftServer
 
                 tileTicks = (NbtList)chunkdata["TileTicks"];
         }
-        
         private void LoadForSurvey(NbtCompound chunkdata)
         {
                 sections = (NbtList)chunkdata["Sections"];
@@ -1136,11 +1135,11 @@ namespace MinecraftServer
             return heightMap.tagvalue[((z & 0x000F) * 16) + (x & 0x000F)];
         }
 
-        public int Height(ZoneVoxel Chunk)
+        public int Height(RegionVoxel R)
         {
             if (heightMap == null)
                 return 255;
-            return heightMap.tagvalue[MinecraftOrdinates.ChunkZXidx(Chunk)];
+            return heightMap.tagvalue[R.ChunkZXIdx()];
         }
         public int[] HeightData
         {
@@ -1155,11 +1154,11 @@ namespace MinecraftServer
             return biomes.tagvalue[((z & 0x000F) * 16) + (x & 0x000F)];
 
         }
-        public int Biome(ZoneVoxel Chunk)
+        public int Biome(RegionVoxel R)
         {
             if (biomes == null)
                 return -1;
-            return biomes.tagvalue[MinecraftOrdinates.ChunkZXidx(Chunk)];
+            return biomes.tagvalue[R.ChunkZXIdx()];
 
         }
         public byte[] BiomeData
@@ -1343,7 +1342,8 @@ public class Voxel
         return (Zone * Size) + Offset;
     }
 
-    public int[] V { get; set; }
+    public int[] V { get; internal set; }
+ 
 
     public Voxel() { V = new int[3] { 0, 0, 0 }; IsValid = true; }
     public Voxel(int y, int x, int z) { V = new int[3] { y, x, z }; IsValid = true; }
@@ -1363,7 +1363,7 @@ public class Voxel
     }
     public void MergeVoxel(Voxel Voxel)
     {
-        V = Voxel.V;
+        Voxel.V = V;
     }
 
     public int X { get { return V[1]; } set { V[1] = value; } }
@@ -1400,111 +1400,131 @@ public class Voxel
 
 }
 
-public class ZoneVoxel : Voxel
+public class VoxelZone:Voxel
 {
-
+    
     public int[] Dimensions { get; internal set; }
-    public ZoneVoxel() : base(0, 0, 0) { Dimensions = new int[3] { int.MaxValue, int.MaxValue, int.MaxValue }; }
-    public ZoneVoxel(int y, int x, int z) : base(y, x, z) { Dimensions = new int[3] { int.MaxValue, int.MaxValue, int.MaxValue }; }
-    public ZoneVoxel(int y, int x, int z, int ySize, int xSize, int zSize) : base(y, x, z) { Dimensions = new int[3] { ySize, xSize, zSize }; }
-    public ZoneVoxel(Voxel Voxel, int ySize, int xSize, int zSize) : base(Voxel.Y, Voxel.X, Voxel.Z) { Dimensions = new int[3] { ySize, xSize, zSize }; }
 
-    public void SetDimensions(int ySize, int xSize, int zSize)
+    private Voxel _Zone;
+    private Voxel _Offset;
+    
+    public VoxelZone():base(0,0,0)
     {
+        Dimensions = new int[3] { int.MaxValue, 512, 512 };
+        _Zone = new Voxel(0, 0, 0);
+        _Offset = new Voxel(0, 0, 0);
+    }
+    public VoxelZone(int y, int x, int z):base(y,x,z)
+    {
+        Dimensions = new int[3] { int.MaxValue, 512, 512 };
+        _Zone = new Voxel();
+        _Offset = new Voxel();
+       
+        ResetZoneOffset();
+    }
+    public VoxelZone(int y, int x, int z,int ySize, int xSize, int zSize): base(y, x, z)
+    {
+        Dimensions = new int[3] { ySize, xSize, zSize };
+        _Zone = new Voxel();
+        _Offset = new Voxel();
 
-        Dimensions[0] = ySize;
-        Dimensions[1] = xSize;
-        Dimensions[2] = zSize;
+        ResetZoneOffset();
+    }
+    public VoxelZone(Voxel Voxel, int ySize, int xSize, int zSize):base(Voxel)
+    {
+        Dimensions = new int[3] { ySize, xSize, zSize };
+        _Zone = new Voxel();
+        _Offset = new Voxel();
+
+        ResetZoneOffset();
     }
 
-    public ZoneVoxel ZoneVoxelByZoneOrdinates(int y, int x, int z)
-    {
-        return new ZoneVoxel(Axis(Dimensions[0], y, 0), Axis(Dimensions[1], x, 0), Axis(Dimensions[2], z, 0), Dimensions[0], Dimensions[1], Dimensions[2]);
-    }
-    public ZoneVoxel ZoneVoxelByOffsetOrdinates(int y, int x, int z)
-    {
-        return new ZoneVoxel(Axis(Dimensions[0], ZoneY(Dimensions[0]), y), Axis(Dimensions[1], ZoneX(Dimensions[1]), x), Axis(Dimensions[2], ZoneZ(Dimensions[2]), z));
-    }
+    public Voxel Zone { get { return _Zone; } set { UpdateZone(value); } }
+    public Voxel Offset { get { return _Offset; } set { UpdateOffset(value); } }
 
-    public Voxel Zone
-    {
-        get
-        {
-            return new Voxel(ZoneY, ZoneX, ZoneZ);
-        }
-        set
-        {
-            V[0] = Axis(Dimensions[0], value.Y, 0);
-            V[1] = Axis(Dimensions[1], value.X, 0);
-            V[2] = Axis(Dimensions[2], value.Z, 0);
-        }
-    }
-    public Voxel Offset
-    {
-        get
-        {
-            return new Voxel(OffsetY, OffsetX, OffsetZ);
-        }
-        set
-        {
-            V[0] = Axis(Dimensions[0], ZoneY, value.Y);
-            V[1] = Axis(Dimensions[1], ZoneX, value.X);
-            V[2] = Axis(Dimensions[2], ZoneZ, value.Z);
-        }
-    }
+    public new int ZoneX { get { return _Zone.X; } set { X = Axis(Dimensions[1], value, OffsetX); _Zone.X = value;  } }
+    public new int ZoneY { get { return _Zone.Y; } set { Y = Axis(Dimensions[0], value, OffsetY); _Zone.Y = value;  } }
+    public new int ZoneZ { get { return _Zone.Z; } set { Z = Axis(Dimensions[2], value, OffsetZ); _Zone.Z = value;  } }
 
-    public void ZoneOrdinates(int y, int x, int z)
+    public new int OffsetX { get { return _Offset.X; } set { X = Axis(Dimensions[1], ZoneX, value); _Offset.X = value; } }
+    public new int OffsetY { get { return _Offset.Y; } set { Y = Axis(Dimensions[0], ZoneY, value); _Offset.Y = value;  } }
+    public new int OffsetZ { get { return _Offset.Z; } set { Z = Axis(Dimensions[2], ZoneZ, value); _Offset.Z = value;  } }
+
+    public void ResetZoneOffset()
     {
-        ZoneY = y;
-        ZoneX = x;
-        ZoneZ = z;
+        _Zone.X = ZoneX(Dimensions[1]);
+        _Zone.Y = ZoneY(Dimensions[0]);
+        _Zone.Z = ZoneZ(Dimensions[2]);
+
+        _Offset.X = OffsetX(Dimensions[1]);
+        _Offset.Y = OffsetY(Dimensions[0]);
+        _Offset.Z = OffsetZ(Dimensions[2]);
+
+   
     }
-    public void OffsetOrdinates(int y, int x, int z)
+    public void ResetVoxel()
     {
-        OffsetY = y;
-        OffsetX = x;
-        OffsetZ = z;
+        X = Axis(Dimensions[1], ZoneX, OffsetX);
+        Y = Axis(Dimensions[0], ZoneY, OffsetY);
+        Z = Axis(Dimensions[2], ZoneZ, OffsetZ);
+    }
+   
+    public void UpdateVoxel(Voxel Voxel)
+    {
+         SetVoxel(Voxel);
+         ResetZoneOffset();
+    }
+    public void UpdateVoxel(int y, int x, int z)
+    {
+         SetVoxel(y, x, z);
+         ResetZoneOffset();
     }
 
-    public ZoneVoxel ZoneFromOffset(int ySize, int xSize, int zSize)
+    
+    public void UpdateZone(Voxel Voxel)
     {
-        ZoneVoxel v = new ZoneVoxel(Offset, ySize, xSize, zSize);
-        return v;
+        _Zone.SetVoxel(Voxel);
+        ResetVoxel();
     }
-    public Voxel Voxel { get { return this; } set { V[0] = value.V[0]; V[1] = value.V[1]; V[2] = value.V[2]; } }
+    public void UpdateZone(int y, int x, int z)
+    {
+        _Zone.SetVoxel(y, x, z);
+        ResetVoxel();
+    }
+    
+    public void UpdateOffset(Voxel Voxel)
+    {
+        _Offset.SetVoxel(Voxel);
+        ResetVoxel();
+        
+    }
+    public void UpdateOffset(int y, int x, int z)
+    {
+        _Offset.SetVoxel(y, x, z);
+        ResetVoxel();
+        
+    }
 
-    public new int ZoneX { get { return ZoneX(Dimensions[1]); } set { V[1] = Axis(Dimensions[1], value, 0); } }
-    public new int ZoneY { get { return ZoneY(Dimensions[0]); } set { V[0] = Axis(Dimensions[0], value, 0); } }
-    public new int ZoneZ { get { return ZoneZ(Dimensions[2]); } set { V[2] = Axis(Dimensions[2], value, 0); } }
-
-    public new int OffsetX { get { return OffsetX(Dimensions[1]); } set { V[1] = Axis(Dimensions[1], ZoneX, value); } }
-    public new int OffsetY { get { return OffsetY(Dimensions[0]); } set { V[0] = Axis(Dimensions[0], ZoneY, value); } }
-    public new int OffsetZ { get { return OffsetZ(Dimensions[2]); } set { V[2] = Axis(Dimensions[2], ZoneZ, value); } }
-
-
-
+    
 }
 
-public class RegionVoxel
+public class RegionVoxel:VoxelZone
 {
-    private ZoneVoxel _Region;
-    private ZoneVoxel _Chunk;
 
-
-    public ZoneVoxel Region { get { return _Region; } set { _Region = value; _Chunk = Region.ZoneFromOffset(16, 16, 16); } }
-    public ZoneVoxel Chunk { get { return _Chunk; } set { _Region.Offset = value; _Chunk = Region.ZoneFromOffset(16, 16, 16); } }
-
-    public RegionVoxel() { Region = new ZoneVoxel(0, 0, 0, int.MaxValue, 512, 512); }
-    public RegionVoxel(int y, int x, int z) { Region = new ZoneVoxel(y, x, z, int.MaxValue, 512, 512); }
-
+    private VoxelZone _Chunk;
+    public VoxelZone Chunk { get { _Chunk.UpdateVoxel(Offset); return _Chunk; } set { UpdateOffset(value); } }
+    
     public void UpdateRegion()
     {
-        _Region.Offset = Chunk;
+        UpdateOffset(_Chunk);
     }
     public void UpdateChunk()
     {
-        _Chunk = _Region.ZoneFromOffset(16, 16, 16);
+        _Chunk.UpdateVoxel(Offset);
     }
+
+    public RegionVoxel() : base(0, 0, 0, int.MaxValue, 512, 512) { _Chunk = MinecraftOrdinates.Chunk(this); }
+    public RegionVoxel(int y, int x, int z) : base(y, x, z, int.MaxValue, 512, 512) { _Chunk = MinecraftOrdinates.Chunk(this); }
 
     public int ChunkIdx() { return (_Chunk.ZoneZ * 32) + _Chunk.ZoneX; }
     public int ChunkZXIdx() { return (_Chunk.OffsetZ * 16) + _Chunk.OffsetX; }
@@ -1514,30 +1534,18 @@ public class RegionVoxel
 
 public static class MinecraftOrdinates
 {
-    public static ZoneVoxel Region() { return new ZoneVoxel(0, 0, 0, int.MaxValue, 512, 512); }
-    public static ZoneVoxel Region(int y, int x, int z) { return new ZoneVoxel(y, x, z, int.MaxValue, 512, 512); }
-    public static ZoneVoxel Region(Voxel Voxel) { return new ZoneVoxel(Voxel.Y, Voxel.X, Voxel.Z, int.MaxValue, 512, 512); }
+    public static VoxelZone Region() { return new VoxelZone(0, 0, 0, int.MaxValue, 512, 512); }
+    public static VoxelZone Region(int y, int x, int z) { return new VoxelZone(y, x, z, int.MaxValue, 512, 512); }
+    public static VoxelZone Region(Voxel Voxel) { return new VoxelZone(Voxel, int.MaxValue, 512, 512); }
 
-    public static ZoneVoxel Chunk() { return new ZoneVoxel(0, 0, 0, 16, 16, 16); }
-    public static ZoneVoxel Chunk(int y, int x, int z) { return new ZoneVoxel(y, x, z, 16, 16, 16); }
-    public static ZoneVoxel Chunk(ZoneVoxel Region) { return new ZoneVoxel(Region.Offset, 16, 16, 16); }
-    public static ZoneVoxel Chunk(Voxel Voxel) { return new ZoneVoxel(Voxel, 16, 16, 16); }
+    public static VoxelZone Chunk() { return new VoxelZone(0, 0, 0, 16, 16, 16); }
+    public static VoxelZone Chunk(int y, int x, int z) { return new VoxelZone(y, x, z, 16, 16, 16); }
+    public static VoxelZone Chunk(VoxelZone Region) { return new VoxelZone(Region.Offset, 16, 16, 16); }
+    public static VoxelZone Chunk(Voxel Voxel) { return new VoxelZone(Voxel, 16, 16, 16); }
 
-    public static int ChunkIdx(ZoneVoxel Chunk) { return (Chunk.ZoneZ * 32) + Chunk.ZoneX; }
-    public static int ChunkZXidx(ZoneVoxel Chunk) { return (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
-    public static int ChunkBlockPos(ZoneVoxel Chunk) { return (Chunk.OffsetY * 16 * 16) + (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
-
-    public static void SetRegion(ZoneVoxel Region, int y, int x, int z)
-    {
-        Region.ZoneX = x;
-        Region.ZoneZ = z;
-        Region.OffsetY = y;
-    }
-
-    public static Voxel ToRegionZone(Voxel Voxel) { ZoneVoxel R = new ZoneVoxel(Voxel, int.MaxValue, 512, 512); return R.Zone; }
-    public static Voxel ToRegionOffset(Voxel Voxel) { ZoneVoxel R = new ZoneVoxel(Voxel, int.MaxValue, 512, 512); return R.Offset; }
-    public static Voxel ToChunkZone(Voxel Voxel) { ZoneVoxel C = new ZoneVoxel(Voxel, 16, 16, 16); return C.Zone; }
-    public static Voxel ToChunkOffset(Voxel Voxel) { ZoneVoxel C = new ZoneVoxel(Voxel, 16, 16, 16); return C.Offset; }
+    public static int ChunkIdx(VoxelZone Chunk) { return (Chunk.ZoneZ * 32) + Chunk.ZoneX; }
+    public static int ChunkZXidx(VoxelZone Chunk) { return (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
+    public static int ChunkBlockPos(VoxelZone Chunk) { return (Chunk.OffsetY * 16 * 16) + (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
 
 }
 
