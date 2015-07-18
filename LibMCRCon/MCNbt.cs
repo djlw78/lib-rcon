@@ -767,7 +767,7 @@ namespace MinecraftServer
     }
 
 
-    public class Region : RegionVoxel
+    public class Region : VoxelRegion
     {
 
 
@@ -839,7 +839,7 @@ namespace MinecraftServer
         {
             if (ShouldLoadChunk == true)
             {
-                nbtChunk = new NbtChunk(mca[this].chunkNBT);
+                nbtChunk = new NbtChunk(mca[ChunkIdx()].chunkNBT);
                 lastYsect = -1;
                 ShouldLoadChunk = false;
             }
@@ -970,25 +970,22 @@ namespace MinecraftServer
     {
 
 
-        Int32[] chunkhdr;
-        Int32[] chunksect;
-        DateTime[] timehdr;
+        Int32[] chunkhdr = new Int32[1024];
+        Int32[] chunksect = new Int32[1024];
+        DateTime[] timehdr = new DateTime[1024];
 
-        List<ChunkMCA> chunks;
+        ChunkMCA[] chunks = new ChunkMCA[1024];
+        
         int lastX = -1;
         int lastZ = -1;
 
+        public int Count { get; set; }
 
         string mcaFilePath = string.Empty;
 
         public RegionMCA()
         {
 
-            chunks = new List<ChunkMCA>(1024);
-
-            chunkhdr = new Int32[1024];
-            chunksect = new Int32[1024];
-            timehdr = new DateTime[1024];
             lastX = int.MaxValue;
             lastZ = int.MaxValue;
 
@@ -1007,17 +1004,13 @@ namespace MinecraftServer
 
 
         }
-        public void LoadRegion(Region R)
+        public void LoadRegion(int RegionX, int RegionZ)
         {
 
-            if (R != null)
-            {
-                Voxel Zone = R.Zone;
-
-                if (lastX != Zone.X || lastZ != Zone.Z)
+                if (lastX != RegionX || lastZ != RegionZ)
                 {
-                    lastX = Zone.X;
-                    lastZ = Zone.Z;
+                    lastX = RegionX;
+                    lastZ = RegionZ;
 
 
                     DirectoryInfo regionDir = new DirectoryInfo(mcaFilePath);
@@ -1026,7 +1019,10 @@ namespace MinecraftServer
                     if (f.Exists)
                     {
 
-                        chunks.Clear();
+                        for (int c = 0; c < 1024; c++)
+                            chunks[c] = null;
+
+                        Count = 0;
 
 
                         FileStream fs = f.OpenRead();
@@ -1047,7 +1043,8 @@ namespace MinecraftServer
                             try
                             {
                                 fs.Seek(chunkhdr[c], SeekOrigin.Begin);
-                                chunks.Add(new ChunkMCA(chunkhdr[c], chunksect[c], fs));
+                                chunks[c] = new ChunkMCA(chunkhdr[c], chunksect[c], fs);
+                                Count += 1;
                             }
                             catch (Exception)
                             {
@@ -1060,27 +1057,27 @@ namespace MinecraftServer
 
                     }
                 }
-            }
+            
         }
+
         public ChunkMCA this[int index]
         {
             get
             {
-                if (chunks.Count == 0 || chunks.Count < index)
+                if (Count == 0 || Count < index)
                     return null;
                 return chunks[index];
             }
         }
-
-        public ChunkMCA this[Region R]
+        public ChunkMCA this[int ChunkX, int ChunkZ]
         {
             get
             {
-                return this[R.ChunkIdx()];
+                return this[(ChunkZ * 32) + ChunkX];
             }
         }
 
-        public bool IsLoaded { get { return chunks.Count > 0; } }
+        public bool IsLoaded { get { return Count > 0; } }
 
 
     }
@@ -1155,15 +1152,18 @@ namespace MinecraftServer
 
         public int Height(int x, int z)
         {
+            if (heightMap == null)
+                return 255;
+
             return heightMap.tagvalue[((z & 0x000F) * 16) + (x & 0x000F)];
         }
-
-        public int Height(RegionVoxel R)
+        public int Height(int ChunkZXIdx)
         {
             if (heightMap == null)
                 return 255;
-            return heightMap.tagvalue[R.ChunkZXIdx()];
+            return heightMap.tagvalue[ChunkZXIdx];
         }
+        
         public int[] HeightData
         {
             get
@@ -1171,19 +1171,23 @@ namespace MinecraftServer
                 return heightMap.tagvalue;
             }
         }
-
+        
         public int Biome(int x, int z)
-        {
-            return biomes.tagvalue[((z & 0x000F) * 16) + (x & 0x000F)];
-
-        }
-        public int Biome(RegionVoxel R)
         {
             if (biomes == null)
                 return -1;
-            return biomes.tagvalue[R.ChunkZXIdx()];
+           
+            return biomes.tagvalue[((z & 0x000F) * 16) + (x & 0x000F)];
 
         }
+        public int Biome(int ChunkZXIdx)
+        {
+            if (biomes == null)
+                return -1;
+            return biomes.tagvalue[ChunkZXIdx];
+
+        }
+       
         public byte[] BiomeData
         {
             get
@@ -1200,9 +1204,15 @@ namespace MinecraftServer
             return (NbtCompound)sections.tagvalue.Find(x => (((NbtByte)(((NbtCompound)x)["Y"])).tagvalue == y));
 
         }
-
+        
+        public NbtChunkSection BlockSection(Int32 y)  { return new NbtChunkSection(Section(y)); }
         public List<NbtChunkSection> BlockSections()
         {
+
+            if(sections == null)
+            {
+                return new List<NbtChunkSection>();
+            }
 
             List<NbtChunkSection> blocks = new List<NbtChunkSection>(sections.tagvalue.Count);
 
@@ -1543,20 +1553,20 @@ namespace MinecraftServer
 
     }
 
-    public class RegionVoxel : VoxelZone
+    public class VoxelRegion : VoxelZone
     {
 
 
         public VoxelZone Chunk { get; set; }
 
-        public RegionVoxel() : base(0, 0, 0, int.MaxValue, 512, 512) { Chunk = LinkedOffset(16, 16, 16); }
-        public RegionVoxel(int y, int x, int z) : base(y, x, z, int.MaxValue, 512, 512) { Chunk = LinkedOffset(16, 16, 16); }
+        public VoxelRegion() : base(0, 0, 0, int.MaxValue, 512, 512) { Chunk = LinkedOffset(16, 16, 16); }
+        public VoxelRegion(int y, int x, int z) : base(y, x, z, int.MaxValue, 512, 512) { Chunk = LinkedOffset(16, 16, 16); }
 
         public int ChunkIdx() { return (Chunk.ZoneZ * 32) + Chunk.ZoneX; }
         public int ChunkZXIdx() { return (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
         public int ChunkBlockPos() { return (Chunk.OffsetY * 16 * 16) + (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
 
-
+        
 
     }
 
