@@ -1565,8 +1565,7 @@ namespace MinecraftServer
         public int ChunkIdx() { return (Chunk.ZoneZ * 32) + Chunk.ZoneX; }
         public int ChunkZXIdx() { return (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
         public int ChunkBlockPos() { return (Chunk.OffsetY * 16 * 16) + (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
-
-        
+       
 
     }
 
