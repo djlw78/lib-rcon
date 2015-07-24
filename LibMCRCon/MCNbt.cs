@@ -1292,6 +1292,8 @@ namespace MinecraftServer
 
         public int BlockID(int BlockPos)
         {
+            if (Blocks == null)
+                return 0;
 
             byte block_a = Blocks.tagvalue[BlockPos];
             byte block_b = (Add != null) ? BlockNibble(Add, BlockPos) : (byte)0;
