@@ -383,7 +383,7 @@ namespace MinecraftServer
             StateRCon = RConState.IDLE;
 
             AbortTCP = false;
-
+            Connecting = true;
 
             try
             {
