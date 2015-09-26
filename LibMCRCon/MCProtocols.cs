@@ -8,8 +8,10 @@ using System.IO;
 using System.IO.Compression;
 using zlib;
 
+using NBT;
+
   
-namespace MinecraftServer
+namespace Network
 {
     public enum mcProtoStates { HandShake, Play }
     public enum mcProtoTargets { Server , Client }

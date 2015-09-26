@@ -10,9 +10,14 @@ using System.Threading;
 using System.Net.Sockets;
 using System.Data.SqlClient;
 
+using NBT;
+using WorldData;
+using WorldData.Ordinates;
+
+
 
 //!Classes directly related to the minecraft server.
-namespace MinecraftServer
+namespace Server
 {
     /// <summary>
     /// RCon packet reader/writter.
@@ -594,7 +599,7 @@ namespace MinecraftServer
             if (AbortTCP == true)
                 return "RCON_ABORTED";
 
-            MinecraftServer.RconPacket p;
+            Server.RconPacket p;
             StringBuilder sb = new StringBuilder();
 
             TimeCheck tc = new TimeCheck();
@@ -622,9 +627,7 @@ namespace MinecraftServer
 
 
     }
-    
-
-
+ 
     //!Track time passing using computer time.
     public class TimeCheck
     {
@@ -898,6 +901,9 @@ namespace MinecraftServer
 
 }
 
+
+
+
 /// <summary>
 /// A way to programmatically control and track changes made by the /fill command in minecraft.
 /// 
@@ -913,7 +919,7 @@ namespace MinecraftServer
 /// +Z, East follows +X, and West follows -X.  The fill voxels will be translated to the minecraft facing and coodinate system at rendering.
 /// All fill primatives are expected to fit into a 6x6x6 cube, so the Mapping portion of the system will align rooms up correctly.
 /// </summary>
-namespace MinecraftFillRendering
+namespace FillRendering
 {
    
 
@@ -1569,7 +1575,7 @@ namespace MinecraftFillRendering
     }
 }
 
-namespace MinecraftWebData
+namespace WebData
 {
     [Serializable]
     public class Poi
