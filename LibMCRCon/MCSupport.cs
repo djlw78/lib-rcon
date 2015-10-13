@@ -3,21 +3,24 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+
 using System.Text;
 using System.Xml.Serialization;
 using System.Xml;
 using System.Threading;
 using System.Net.Sockets;
 using System.Data.SqlClient;
+using System.IO;
+using System.IO.Compression;
 
-using NBT;
-using WorldData;
-using WorldData.Ordinates;
+
+using LibMCRcon.Nbt;
+using LibMCRcon.WorldData;
 
 
 
 //!Classes directly related to the minecraft server.
-namespace Server
+namespace LibMCRcon.RCon
 {
     /// <summary>
     /// RCon packet reader/writter.
@@ -91,7 +94,7 @@ namespace Server
         private byte[] fillByteArray(byte[] dest, byte[] source, int offset, int size)
         {
 
-          
+
             if (dest.Length > offset + size)
                 if (source.Length <= size)
                     for (int x = 0; x < size; x++)
@@ -153,6 +156,7 @@ namespace Server
 
                     if ((size - 10) > 0)
                     {
+
                         response = Encoding.ASCII.GetString(data, 8, size - 10);
 
                     }
@@ -168,13 +172,16 @@ namespace Server
                     }
                 }
                 else
+
                     isBadPacket = true;
 
 
+
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 isBadPacket = true;
+                response = e.Message;
 
             }
 
@@ -218,7 +225,7 @@ namespace Server
         public string RConPass { get; set; }
         public int RConPort { get; set; }
 
-        public TCPState  StateTCP { get; set; }
+        public TCPState StateTCP { get; set; }
         public RConState StateRCon { get; set; }
 
         protected bool AbortTCP { get; set; }
@@ -227,7 +234,7 @@ namespace Server
         public int ResetConnectAttemps { get; set; }
 
         TcpClient cli;
-    
+
 
         Thread bgCommThread;
         Queue<RconPacket> cmdQue = new Queue<RconPacket>();
@@ -236,7 +243,8 @@ namespace Server
         /// <summary>
         /// Default constructor, will still need RCon server url, password and port.
         /// </summary>
-        public TCPRcon(): base()
+        public TCPRcon()
+            : base()
         {
 
 
@@ -247,7 +255,8 @@ namespace Server
         /// <param name="MineCraftServer">DNS address of the rcon server.</param>
         /// <param name="port">Port RCon is listening to on the server.</param>
         /// <param name="password">Configured password for the RCon server.</param>
-        public TCPRcon(string host, int port, string password):base()
+        public TCPRcon(string host, int port, string password)
+            : base()
         {
             RConHost = host;
             RConPort = port;
@@ -270,8 +279,8 @@ namespace Server
         /// <returns>Return TCPRcon with the same host,port, and password.</returns>
         public TCPRcon CopyConnection()
         {
-            
-            TCPRcon r = new TCPRcon(RConHost,RConPort,RConPass);
+
+            TCPRcon r = new TCPRcon(RConHost, RConPort, RConPass);
             r.StartComms();
 
             return r;
@@ -324,7 +333,7 @@ namespace Server
             }
 
             tc.Reset(10000);
-            
+
             do
             {
                 if (StateTCP == TCPState.CONNECTED)
@@ -349,7 +358,7 @@ namespace Server
         /// <summary>
         /// Stop communication and close all connections.  Will block until complete or timed out.
         /// </summary>
-        
+
         public void StopComms()
         {
 
@@ -376,7 +385,7 @@ namespace Server
         /// True if the connection is open and the queue is ready for commands.
         /// </summary>
         public bool IsReadyForCommands { get { return StateTCP == TCPState.CONNECTED && StateRCon == RConState.READY; } }
-     
+
         private void ConnectAndProcess()
         {
             DateTime transmitLatch = DateTime.Now.AddMilliseconds(-1);
@@ -392,13 +401,13 @@ namespace Server
 
             try
             {
-                
+
                 cli.Connect(RConHost, RConPort);
                 Connecting = false;
 
                 StateTCP = TCPState.CONNECTED;
                 StateRCon = RConState.AUTHENTICATE;
-               
+
                 RconPacket auth = RconPacket.AuthPacket(RConPass, sessionID);
                 auth.SendToNetworkStream(cli.GetStream());
 
@@ -455,8 +464,8 @@ namespace Server
                 }
                 return;
             }
-                    
-           
+
+
             Comms();
 
             if (cli.Connected == true)
@@ -468,13 +477,13 @@ namespace Server
 
         private void Comms()
         {
-            
+
             TimeCheck tc = new TimeCheck();
             Int32 dT = 200;
 
             cli.SendTimeout = 5000;
             cli.ReceiveTimeout = 20000;
-            
+
             try
             {
 
@@ -490,7 +499,7 @@ namespace Server
 
                 while (AbortTCP == false)
                 {
-                    
+
                     do
                     {
                         if (cli.Available > 0)
@@ -509,7 +518,7 @@ namespace Server
 
                             }
 
-                            if (Count > 500)
+                            if (Count > 1500)
                             {
                                 StateRCon = RConState.IDLE;
                                 StateTCP = TCPState.ABORTED;
@@ -599,7 +608,7 @@ namespace Server
             if (AbortTCP == true)
                 return "RCON_ABORTED";
 
-            Server.RconPacket p;
+            RconPacket p;
             StringBuilder sb = new StringBuilder();
 
             TimeCheck tc = new TimeCheck();
@@ -627,7 +636,7 @@ namespace Server
 
 
     }
- 
+
     //!Track time passing using computer time.
     public class TimeCheck
     {
@@ -653,10 +662,10 @@ namespace Server
         /// <summary>
         /// Checks to see if the current time is passed the stored checkpoint and returns true if passed.
         /// </summary>
-        public bool Expired 
-        { 
-            get 
-            { 
+        public bool Expired
+        {
+            get
+            {
                 return (DateTime.Now > dT) ? true : false;
             }
         }
@@ -808,7 +817,45 @@ namespace Server
         /// <param name="sb">Output cache from RCon execution, raw.</param>
         /// <param name="player">Player name on the server, must be logged in.</param>
         /// <returns>A Voxel, an object with X,Y,Z coordinates buddled together.</returns>
+
         public Voxel PlayerLocation(TCPRcon r, StringBuilder sb, String player)
+        {
+            Voxel pV = MinecraftOrdinates.Region();
+            string result;
+            if (r.IsReadyForCommands)
+            {
+                result = r.ExecuteCmd(string.Format("execute {0} ~ ~ ~ testforblock ~ ~-1 ~ minecraft:lava", player));
+                if (result.Length > 0)
+                {
+                    string data = result.Substring(12, result.IndexOf("is") - 12);
+                    string[] tpdata = data.Split(new char[] { ',' });
+
+                    float tf = 0;
+
+                    if (float.TryParse(tpdata[0], out tf))
+                    {
+                        pV.X = (int)tf;
+                        tf = 0;
+                        if (float.TryParse(tpdata[1], out tf))
+                        {
+                            pV.Y = (int)tf;
+                            tf = 0;
+                            if (float.TryParse(tpdata[2], out tf))
+                            {
+                                pV.Z = (int)tf;
+                                return pV;
+                            }
+
+                        }
+                    }
+                }
+            }
+
+            pV.IsValid = false;
+            return pV;
+
+        }
+        public Voxel PlayerLocationTP(TCPRcon r, StringBuilder sb, String player)
         {
 
             Voxel pV = new Voxel();
@@ -844,7 +891,7 @@ namespace Server
                     sb.AppendFormat("Error in locating player:{0}", e.Message);
                     pV.IsValid = false;
                 }
-                
+
 
             }
             else
@@ -853,6 +900,7 @@ namespace Server
             return pV;
 
         }
+
         public static TCPRcon ActivateRcon(string Host, int port, string password)
         {
             var r = new TCPRcon(Host, port, password);
@@ -863,7 +911,7 @@ namespace Server
         }
         public static List<string> LoadPlayers(TCPRcon r, StringBuilder sb)
         {
-           
+
             string[] list_players;
 
 
@@ -881,8 +929,8 @@ namespace Server
                 catch (Exception ee)
                 {
                     list_players = new string[] { "NO_ONE_ONLINE" };
-                    sb.AppendFormat(@"{0} => Connection:{1}, Network:{2}",ee.Message,r.LastTCPError,r.StateTCP,r.StateRCon);
-                    
+                    sb.AppendFormat(@"{0} => Connection:{1}, Network:{2}", ee.Message, r.LastTCPError, r.StateTCP, r.StateRCon);
+
                 }
 
 
@@ -891,7 +939,7 @@ namespace Server
             {
                 list_players = new string[] { "RCON_ERROR" };
             }
-        
+
 
             return new List<string>(list_players);
 
@@ -900,9 +948,6 @@ namespace Server
     }
 
 }
-
-
-
 
 /// <summary>
 /// A way to programmatically control and track changes made by the /fill command in minecraft.
@@ -919,14 +964,14 @@ namespace Server
 /// +Z, East follows +X, and West follows -X.  The fill voxels will be translated to the minecraft facing and coodinate system at rendering.
 /// All fill primatives are expected to fit into a 6x6x6 cube, so the Mapping portion of the system will align rooms up correctly.
 /// </summary>
-namespace FillRendering
+namespace LibMCRcon.Maps
 {
-   
+
 
     /// <summary>
     /// Enumeration to set the facing of the 'player' before rendering fill commands.
     /// </summary>
-    public enum MCRenderFacing { North=0, South=1, East=2, West=3 };
+    public enum MCRenderFacing { North = 0, South = 1, East = 2, West = 3 };
     /// <summary>
     /// Defines a fill command, including what tile block entity should be used to fill and 2 sets of X,Y,Z voxels (3-d ordinates)
     /// that create a cube.
@@ -941,7 +986,7 @@ namespace FillRendering
     /// </summary>
     public class MCFill
     {
-        public string BlockType {get;set;} 
+        public string BlockType { get; set; }
 
         int[] p1 = new int[3];
         int[] p2 = new int[3];
@@ -952,7 +997,7 @@ namespace FillRendering
         /// <param name="offsetVoxel">An array representing 3 axis of offset. X,Y,Z [0..2]</param>
         public void OffsetFill(int[] offsetVoxel)
         {
-            for(int x = 0; x<3;x++)
+            for (int x = 0; x < 3; x++)
             {
 
                 p1[x] += offsetVoxel[x];
@@ -961,7 +1006,7 @@ namespace FillRendering
             }
 
         }
-        
+
         /// <summary>
         /// Render the cube, using relative coodinates of the player executing the command.
         /// </summary>
@@ -1129,7 +1174,7 @@ namespace FillRendering
         /// <param name="xs">X axis length</param>
         /// <param name="ys">Y axis length</param>
         /// <param name="zs">Z axis length</param>
-        public MCFill(int xs, int ys, int zs, int x1, int y1, int z1,string BlockType)
+        public MCFill(int xs, int ys, int zs, int x1, int y1, int z1, string BlockType)
         {
             this.BlockType = BlockType;
             Reset(x1, y1, z1, xs, ys, zs);
@@ -1150,7 +1195,7 @@ namespace FillRendering
 
                 for (int x = 0; x < 3; x++)
                     sxyz[x] = ((int)Math.Abs(p2[x] - p1[x])) + 1;
-                
+
                 return sxyz;
             }
         }
@@ -1159,7 +1204,7 @@ namespace FillRendering
         {
             int[] s = size;
             return new MCFill(s[0], s[1], s[2], x, y, z, BlockType);
-          
+
         }
 
         public MCFill Clone(string BlockType)
@@ -1175,7 +1220,7 @@ namespace FillRendering
         }
 
         public void Reset(int x1, int y1, int z1, int xs, int ys, int zs)
-        {   
+        {
 
             if (x1 < 0)
             {
@@ -1209,22 +1254,22 @@ namespace FillRendering
                 p1[2] = z1;
                 p2[2] = z1 + (zs - 1);
             }
-            
-          
+
+
         }
 
-        
+
 
     }
 
-   
+
     /// <summary>
     /// A collection of MCFill objects that could resemble a room structure.
     /// </summary>
     public class MCRoomFill : List<MCFill>
     {
 
-  
+
         public MCRoomFill() : base() { }
         public MCRoomFill(MCRoomFill Room) : base(Room) { }
         public MCRoomFill(params MCFill[] Fill)
@@ -1264,7 +1309,7 @@ namespace FillRendering
 
         public void OffsetMCFill(int[] voxelOffset)
         {
-            foreach(MCFill mcf in this)
+            foreach (MCFill mcf in this)
             {
                 mcf.OffsetFill(voxelOffset);
 
@@ -1483,7 +1528,7 @@ namespace FillRendering
             defaultFacing = Facing;
             pitch = Pitch;
         }
-       
+
         public string[] Render()
         {
             return room.Render(defaultFacing, pitch, false, mapX * 6, mapY * 6, mapZ * 6);
@@ -1586,7 +1631,7 @@ namespace WebData
         private int ry;
         private int ox;
         private int oy;
-                
+
 
         private int dbID;
 
@@ -1596,7 +1641,7 @@ namespace WebData
             set
             {
                 mcX = value;
-                
+
             }
         }
         public int Y
@@ -1608,7 +1653,7 @@ namespace WebData
             }
         }
 
-        public Poi(){}
+        public Poi() { }
 
         public Poi(int MineCraftX, int MineCraftZ)
         {
@@ -1618,7 +1663,7 @@ namespace WebData
             Calculate();
         }
 
-        public void SetPoi(int MineCraftX,int MineCraftZ)
+        public void SetPoi(int MineCraftX, int MineCraftZ)
         {
             X = MineCraftX;
             Y = MineCraftZ;
@@ -1634,7 +1679,7 @@ namespace WebData
             oy = (mcY < 0) ? 512 + (mcY - ((mcY / 512) * 512)) : mcY - ((mcY / 512) * 512);
 
         }
-       
+
         public string RenderLargeBox()
         {
             StringBuilder sb = new StringBuilder();
@@ -1643,16 +1688,16 @@ namespace WebData
         }
 
 
-        public void RenderPoiQuery(StringBuilder sb,string imgName)
+        public void RenderPoiQuery(StringBuilder sb, string imgName)
         {
 
-            sb.AppendFormat(@"<img src=""{2}"" style=""position:absolute;top:{0}px;left:{1}px;z-index:1;pointer-events:none;"" />",oy-7,ox-7,imgName);
+            sb.AppendFormat(@"<img src=""{2}"" style=""position:absolute;top:{0}px;left:{1}px;z-index:1;pointer-events:none;"" />", oy - 7, ox - 7, imgName);
         }
 
         public void RenderPoiText(StringBuilder sb)
         {
 
-            sb.AppendFormat(@"<input type=""text"" style=""position:absolute;top:{0}px;left:{1}px;z-index:1"" />", oy + 7,ox);
+            sb.AppendFormat(@"<input type=""text"" style=""position:absolute;top:{0}px;left:{1}px;z-index:1"" />", oy + 7, ox);
         }
 
         public void RenderPoi(StringBuilder sb)
@@ -1660,11 +1705,11 @@ namespace WebData
 
 
             sb.AppendFormat(@"<a href=""pointinfo.aspx?x={2}&y={3}"" target=""_blank""><img src=""point4.ico"" style=""position:absolute;top:{0}px;left:{1}px;z-index:1;"" /></a>", oy - 7, ox - 7, mcX, mcY);
-            
+
         }
         public string RenderPoi()
         {
-           
+
 
             StringBuilder sb = new StringBuilder();
 
@@ -1676,5 +1721,1209 @@ namespace WebData
 
 
     }
-    
+
+}
+
+namespace LibMCRcon.Rendering
+{
+
+    public class ColorStep
+    {
+        public int Steps { get; set; }
+        public Color Color { get; set; }
+
+        public ColorStep() { Color = Color.Black; Steps = 1; }
+        public ColorStep(Color Color) { this.Color = Color; Steps = 1; }
+        public ColorStep(Color Color, int Steps) { this.Color = Color; this.Steps = Steps; }
+
+        public static Color[] CreatePallet(List<ColorStep> cList)
+        {
+            Color[] p = new Color[256];
+
+            int z = 0;
+
+            ColorStep A;
+            ColorStep B;
+
+            for (int y = 0; y < cList.Count; y++)
+            {
+
+                A = cList[y];
+
+                if ((y + 1) < cList.Count)
+                    B = cList[y + 1];
+                else
+                    B = Color.White.ColorStep(0);
+
+
+
+                for (int x = 0; x < A.Steps; x++)
+                {
+
+
+                    Single aL = (1f / A.Steps) * x;
+
+
+                    byte R1 = 0;
+                    byte G1 = 0;
+                    byte B1 = 0;
+
+                    R1 = (byte)(((A.Color.R * (1 - aL)) + (B.Color.R * aL)) / 2);
+                    G1 = (byte)(((A.Color.G * (1 - aL)) + (B.Color.G * aL)) / 2);
+                    B1 = (byte)(((A.Color.B * (1 - aL)) + (B.Color.B * aL)) / 2);
+
+
+
+                    p[z] = Color.FromArgb(R1, G1, B1);
+                    z++;
+
+                    if (z > 255)
+                        return p;
+
+                }
+            }
+
+            return p;
+        }
+        public static Color MixColors(Single Percentage, Color A, Color B, int WhiteBalance = 10)
+        {
+            int R1 = 0;
+            int G1 = 0;
+            int B1 = 0;
+            Single aL = Percentage / 100;
+
+            R1 = (int)((((A.R * aL) + (B.R * (1 - aL))) / 2) + WhiteBalance);
+            G1 = (int)((((A.G * aL) + (B.G * (1 - aL))) / 2) + WhiteBalance);
+            B1 = (int)((((A.B * aL) + (B.B * (1 - aL))) / 2) + WhiteBalance);
+
+            if (R1 > 255) R1 = 255;
+            if (G1 > 255) G1 = 255;
+            if (B1 > 255) B1 = 255;
+
+
+            return Color.FromArgb(R1, G1, B1);
+        }
+    }
+    public class MCRegionMaps
+    {
+
+        public MCRegionMaps() { }
+
+        public static Color[][] BlockPalette()
+        {
+            Color[][] Blocks = new Color[256][];
+
+            for (int x = 0; x < 256; x++)
+            {
+                switch (x)
+                {
+                    case 1://stone
+                        Blocks[x] = new Color[] { Color.Gray };
+                        break;
+                    case 2://grass
+                        Blocks[x] = new Color[] { Color.Green };
+                        break;
+                    case 3://dirt
+                        Blocks[x] = new Color[] { Color.Brown };
+                        break;
+                    case 4://cobble
+                        Blocks[x] = new Color[] { Color.LightGray };
+                        break;
+                    case 5://wood plank
+                        Blocks[x] = new Color[] { ColorStep.MixColors(80, Color.Brown, Color.Black) };
+                        break;
+                    case 6://sapling
+                        Blocks[x] = new Color[] { Color.Green };
+                        break;
+                    case 7://bed rock
+                        Blocks[x] = new Color[] { Color.DarkGray };
+                        break;
+                    case 8://flowing water
+                    case 9://water
+                        Blocks[x] = new Color[] { Color.Blue };
+                        break;
+
+                    case 10://flo lava
+                    case 11://lava
+                        Blocks[x] = new Color[] { Color.Orange };
+                        break;
+                    case 12://sand
+                        Blocks[x] = new Color[] { ColorStep.MixColors(90, Color.Beige, Color.Black) };
+                        break;
+                    case 13://gravel
+                        Blocks[x] = new Color[] { ColorStep.MixColors(50, Color.Gray, Color.Black) };
+                        break;
+                    case 14://gold ore
+                        Blocks[x] = new Color[] { Color.Yellow };
+                        break;
+                    case 15://iron ore
+                    case 16://coal ore
+                        Blocks[x] = new Color[] { ColorStep.MixColors(30, Color.Gold, Color.Black) };
+                        break;
+                    case 17://wood
+                        Blocks[x] = new Color[] { Color.Brown };
+                        break;
+                    case 18://leaves
+                    case 161://Acacia Leaves (0),(1) dark oak leaves
+                    case 162://acacia wood (0), (1) dark oak wood
+                        Blocks[x] = new Color[] { Color.DarkGreen };
+                        break;
+                    case 19://sponge
+                        Blocks[x] = new Color[] { Color.Beige };
+                        break;
+                    case 20://glass
+                        Blocks[x] = new Color[] { Color.LightBlue };
+                        break;
+                    case 21://lapis ore
+                    case 22://lapis block
+                        Blocks[x] = new Color[] { Color.DarkBlue };
+                        break;
+                    case 24://sandstone
+                        Blocks[x] = new Color[] { ColorStep.MixColors(90, Color.Beige, Color.Black) };
+                        break;
+                    case 35://wool
+                    case 41://gold block
+                    case 42://iron block
+                    case 43://x2 stone slab
+                    case 44://stone slab
+                        Blocks[x] = new Color[] { Color.Gray };
+                        break;
+                    //  case 45://bricks
+                    case 49://obsidian
+                        Blocks[x] = new Color[] { Color.DarkViolet };
+                        break;
+                    case 51://fire
+                        Blocks[x] = new Color[] { Color.Orange };
+                        break;
+                    //case 52://monster spawner
+                    case 56://diamond ore
+                    case 57://diamond block
+                        Blocks[x] = new Color[] { Color.LightBlue };
+                        break;
+                    case 59://wheat crops
+                        Blocks[x] = new Color[] { Color.Wheat };
+                        break;
+                    case 60://farmland
+                        Blocks[x] = new Color[] { Color.BurlyWood };
+                        break;
+                    case 73://redstone ore
+                    case 74://glowing redstone ore
+                        Blocks[x] = new Color[] { Color.Red };
+                        break;
+                    case 78://snow
+                        Blocks[x] = new Color[] { Color.White };
+                        break;
+                    case 79://ice
+                        Blocks[x] = new Color[] { Color.SkyBlue };
+                        break;
+                    case 80://snow block
+                        Blocks[x] = new Color[] { Color.White };
+                        break;
+                    case 81://cactus
+                        Blocks[x] = new Color[] { Color.MediumSpringGreen };
+                        break;
+                    case 82://clay
+                        Blocks[x] = new Color[] { Color.Gray };
+                        break;
+                    case 83://sugar canes
+                        Blocks[x] = new Color[] { Color.LimeGreen };
+                        break;
+                    case 86://pumpkins
+                        Blocks[x] = new Color[] { Color.DarkOrange };
+                        break;
+                    case 87://netherrack
+                        Blocks[x] = new Color[] { Color.DarkRed };
+                        break;
+                    case 88://soul sand
+                        Blocks[x] = new Color[] { Color.DarkGray };
+                        break;
+                    case 89://glow stone
+                        Blocks[x] = new Color[] { Color.Goldenrod };
+                        break;
+                    case 90://nether portal
+                        Blocks[x] = new Color[] { Color.PaleVioletRed };
+                        break;
+                    case 91://jack o'Lantern
+                        Blocks[x] = new Color[] { Color.DarkOrange };
+                        break;
+                    //case 95://stained glass
+                    case 98://stone bricks
+                        Blocks[x] = new Color[] { Color.Gray };
+                        break;
+                    case 99://mushroom block (brown)
+                        Blocks[x] = new Color[] { ColorStep.MixColors(75, Color.Beige, Color.Brown) };
+                        break;
+                    case 100://mushroom block (red)
+                        Blocks[x] = new Color[] { Color.DeepPink };
+                        break;
+                    case 103://melon block
+                        Blocks[x] = new Color[] { Color.Lime };
+                        break;
+                    case 110://mycelium
+                        Blocks[x] = new Color[] { Color.MediumAquamarine };
+                        break;
+                    case 112://nether brick
+                        Blocks[x] = new Color[] { Color.Maroon };
+                        break;
+                    case 125://x2 wood slab
+                    case 126://wood slab
+                        Blocks[x] = new Color[] { Color.BurlyWood };
+                        break;
+                    case 129://emerald ore
+                    case 133://emerald block
+                        Blocks[x] = new Color[] { Color.LightGreen };
+                        break;
+                    case 137://command block
+                    case 141://carrots
+                        Blocks[x] = new Color[] { ColorStep.MixColors(80, Color.Orange, Color.White) };
+                        break;
+                    case 142://potatoes
+                        Blocks[x] = new Color[] { Color.DarkGoldenrod };
+                        break;
+                    case 152://redstone block
+                        Blocks[x] = new Color[] { Color.Red };
+                        break;
+                    case 153://nether quartz block
+                    case 155://quartz block
+                        Blocks[x] = new Color[] { Color.MintCream };
+                        break;
+
+                    case 159://white stained clay
+
+
+                        Blocks[x] = new Color[16] {Color.Beige,Color.Beige,Color.Beige,Color.Beige,Color.Beige
+                                            ,Color.Beige,Color.Beige,Color.Beige,Color.Beige,Color.Beige,Color.Beige,Color.Beige
+                                            ,Color.Beige,Color.Beige,Color.Beige,Color.Beige
+                                        };
+
+                        break;
+
+                    //case 160://stained glass
+
+                    //case 165://slime block
+                    //case 166://barrier
+                    case 168://prismarine
+                    case 169://sea lantern
+                        Blocks[x] = new Color[] { Color.SeaGreen };
+                        break;
+
+                    case 170://hay bale
+                        Blocks[x] = new Color[] { Color.LightYellow };
+                        break;
+                    case 171://carpet (0-white, 1-15)
+                        Blocks[x] = new Color[16] {Color.Beige,Color.Beige,Color.Beige,Color.Beige,Color.Beige
+                                            ,Color.Beige,Color.Beige,Color.Beige,Color.Beige,Color.Beige,Color.Beige,Color.Beige
+                                            ,Color.Beige,Color.Beige,Color.Beige,Color.Beige
+                                        };
+
+                        break;
+                    case 172://hardened clay
+                        Blocks[x] = new Color[] { Color.Firebrick };
+                        break;
+                    case 173://block of coal
+                        Blocks[x] = new Color[] { Color.Black };
+                        break;
+                    case 174://packed ice
+                        Blocks[x] = new Color[] { Color.LightSkyBlue };
+                        break;
+                    case 179://red sandstone
+                    case 181://x2 red sandstone slab
+                    case 182://red sandstone slab
+
+                        Blocks[x] = new Color[] { Color.Firebrick };
+                        break;
+
+                    default:
+                        Blocks[x] = new Color[] { Color.Gray };
+                        break;
+
+
+                }
+            }
+
+            return Blocks;
+        }
+        public static Color[][] Palettes()
+        {
+
+            Color[] Water;
+            Color[] Topo;
+
+            List<ColorStep> cList = new List<ColorStep>();
+
+            cList.Add(Color.Black.ColorStep(20));
+            cList.Add(Color.Pink.ColorStep(20));
+            cList.Add(Color.Blue.ColorStep(20));
+            cList.Add(Color.FromArgb(0xDF, 0xC7, 0x00).ColorStep(20));
+            cList.Add(Color.DarkGreen.ColorStep(20));
+            cList.Add(Color.Orange.ColorStep(20));
+            cList.Add(Color.Brown.ColorStep(20));
+            cList.Add(Color.Plum.ColorStep(20));
+            cList.Add(Color.Magenta.ColorStep(20));
+            cList.Add(Color.Coral.ColorStep(20));
+            cList.Add(Color.Aqua.ColorStep(20));
+            cList.Add(Color.LightCyan.ColorStep(20));
+            cList.Add(Color.Yellow.ColorStep(15));
+
+
+            Topo = ColorStep.CreatePallet(cList);
+
+
+            cList.Clear();
+            cList.Add(Color.Blue.ColorStep(50));
+            cList.Add(Color.Aqua.ColorStep(50));
+            cList.Add(Color.Teal.ColorStep(50));
+            cList.Add(Color.Cyan.ColorStep(50));
+            cList.Add(Color.SkyBlue.ColorStep(25));
+            cList.Add(Color.Turquoise.ColorStep(25));
+
+            Water = ColorStep.CreatePallet(cList);
+
+
+
+
+
+
+            return new Color[][] { Topo, Water };
+        }
+
+
+        public static void Stitched(String ImagesPath, LibMCRcon.WorldData.Region RV, LibMCRcon.WorldData.Region Q1, LibMCRcon.WorldData.Region Q2, LibMCRcon.WorldData.Region Q3, LibMCRcon.WorldData.Region Q4)
+        {
+
+            DirectoryInfo imgDir = new DirectoryInfo(ImagesPath);
+            string SaveBitMap;
+
+            FileInfo fQ1 = new FileInfo(Path.Combine(ImagesPath, string.Format("topo.{0}.{1}.png", Q1.Xs, Q1.Zs)));
+            FileInfo fQ2 = new FileInfo(Path.Combine(ImagesPath, string.Format("topo.{0}.{1}.png", Q2.Xs, Q2.Zs)));
+            FileInfo fQ3 = new FileInfo(Path.Combine(ImagesPath, string.Format("topo.{0}.{1}.png", Q3.Xs, Q3.Zs)));
+            FileInfo fQ4 = new FileInfo(Path.Combine(ImagesPath, string.Format("topo.{0}.{1}.png", Q4.Xs, Q4.Zs)));
+
+            Image bQ1 = null;
+
+            Bitmap b1 = new Bitmap(1024, 1024);
+            Bitmap b2 = new Bitmap(512, 512);
+
+            Graphics g = Graphics.FromImage(b1);
+            SaveBitMap = string.Format(Path.Combine(imgDir.FullName, string.Format("topoCent.{0}.{1}.png", RV.Xs, RV.Zs)));
+
+
+            if (fQ1.Exists)
+            {
+                bQ1 = Image.FromFile(fQ1.FullName);
+                g.DrawImage(bQ1, 0, 0, 512, 512);
+                bQ1.Dispose();
+            }
+
+            if (fQ2.Exists)
+            {
+                bQ1 = Image.FromFile(fQ2.FullName);
+                g.DrawImage(bQ1, 512, 0, 512, 512);
+                bQ1.Dispose();
+            }
+
+            if (fQ3.Exists)
+            {
+                bQ1 = Image.FromFile(fQ3.FullName);
+                g.DrawImage(bQ1, 512, 512, 512, 512);
+                bQ1.Dispose();
+            }
+
+            if (fQ4.Exists)
+            {
+                bQ1 = Image.FromFile(fQ4.FullName);
+                g.DrawImage(bQ1, 0, 512, 512, 512);
+                bQ1.Dispose();
+            }
+
+            g.Dispose();
+            g = Graphics.FromImage(b2);
+
+            g.DrawImage(b1, new Rectangle(0, 0, 512, 512), new Rectangle(Q1.Xo, Q1.Zo, 512, 512), GraphicsUnit.Pixel);
+            g.Dispose();
+
+            b2.Save(SaveBitMap, System.Drawing.Imaging.ImageFormat.Png);
+            b2.Dispose();
+            b1.Dispose();
+
+
+        }
+        public static void RenderBlockPngFromRegion(byte[][] TopoData, Color[] BlockData, string ImgPath, LibMCRcon.WorldData.Region RV)
+        {
+            byte[] hMap = TopoData[0];
+            byte[] wMap = TopoData[1];
+
+            Bitmap bit = new Bitmap(512, 512);
+
+            Color[][] pal = Palettes();
+            Color[] tRGB = pal[0];
+            Color[] wRGB = pal[1];
+
+            for (int zz = 0; zz < 512; zz++)
+            {
+
+                for (int xx = 0; xx < 512; xx++)
+                {
+
+                    int gI = (zz * 512) + xx;
+
+                    if (wMap[gI] < 255)
+                        bit.SetPixel(xx, zz, ColorStep.MixColors(35, BlockData[gI], wRGB[wMap[gI]]));
+                    else
+                        bit.SetPixel(xx, zz, BlockData[gI]);
+                }
+
+            }
+
+
+
+            DirectoryInfo imgDir = new DirectoryInfo(ImgPath);
+            string SaveBitMap = string.Format(Path.Combine(imgDir.FullName, string.Format("tile.{0}.{1}.png", RV.Xs, RV.Zs)));
+            bit.Save(SaveBitMap, System.Drawing.Imaging.ImageFormat.Png);
+            bit.Dispose();
+
+        }
+        public static void RenderTopoPngFromRegion(byte[][] HeightData, string ImgPath, LibMCRcon.WorldData.Region RV)
+        {
+            byte[] hMap = HeightData[0];
+            byte[] hWMap = HeightData[1];
+
+            Bitmap bit = new Bitmap(512, 512);
+
+            Color[][] pal = Palettes();
+            Color[] tRGB = pal[0];
+            Color[] wRGB = pal[1];
+
+            for (int zz = 0; zz < 512; zz++)
+            {
+
+                for (int xx = 0; xx < 512; xx++)
+                {
+
+                    int gI = (zz * 512) + xx;
+
+                    if (hWMap[gI] < 255)
+
+                        bit.SetPixel(xx, zz, wRGB[hWMap[gI]]);
+                    else
+                    {
+
+                        bit.SetPixel(xx, zz, tRGB[hMap[gI]]);
+                    }
+
+
+
+
+                }
+
+            }
+
+
+
+            DirectoryInfo imgDir = new DirectoryInfo(ImgPath);
+            string SaveBitMap = string.Format(Path.Combine(imgDir.FullName, string.Format("topo.{0}.{1}.png", RV.Xs, RV.Zs)));
+
+            bit.Save(SaveBitMap, System.Drawing.Imaging.ImageFormat.Png);
+            bit.Dispose();
+
+        }
+        public static void RenderLegend(string ImgPath)
+        {
+
+            FileInfo legend = new FileInfo(Path.Combine(ImgPath, "legend.png"));
+            if (legend.Exists == false)
+            {
+
+                Bitmap bit = new Bitmap(20, 512);
+
+                Color[][] pal = Palettes();
+
+                Color[] tRGB = pal[0];
+                Color[] wRGB = pal[1];
+
+
+                Graphics gBit = Graphics.FromImage(bit);
+
+                for (int z = 0; z < 256; z++)
+                {
+                    gBit.DrawLine(new Pen(tRGB[z]), 0, 255 - z, 15, 255 - z);
+                    gBit.DrawLine(new Pen(wRGB[z]), 0, 511 - z, 15, 511 - z);
+
+                    if (z % 10 == 0)
+                    {
+                        gBit.DrawLine(new Pen(Color.Black), 16, 255 - z, 19, 255 - z);
+                        gBit.DrawLine(new Pen(Color.Black), 16, 511 - z, 19, 511 - z);
+                    }
+                }
+
+                gBit.Dispose();
+
+                DirectoryInfo imgDir = new DirectoryInfo(ImgPath);
+                string SaveBitMap = string.Format(Path.Combine(imgDir.FullName, "legend.png"));
+                bit.Save(SaveBitMap, System.Drawing.Imaging.ImageFormat.Png);
+                bit.Dispose();
+            }
+        }
+
+        public static void RenderDataFromRegion(RegionMCA mca, LibMCRcon.WorldData.Region rVox, byte[][] TopoData, Color[] Blocks = null)
+        {
+
+            byte[] hMap = TopoData[0];
+            byte[] hWMap = TopoData[1];
+            Color[][] BlockColors = BlockPalette();
+            Voxel Chunk;
+
+
+            if (mca.IsLoaded)
+            {
+
+                for (int zz = 0; zz < 32; zz++)
+                    for (int xx = 0; xx < 32; xx++)
+                    {
+
+
+                        rVox.SetOffset(65, xx * 16, zz * 16);
+                        rVox.RefreshChunk();
+                        Chunk = rVox.Chunk;
+
+
+                        NbtChunk c = rVox.NbtChunk(mca);
+                        NbtChunkSection s;
+
+
+                        for (int x = 0; x < 16; x++)
+                            for (int z = 0; z < 16; z++)
+                            {
+                                Chunk.Xo = x;
+                                Chunk.Zo = z;
+
+                                // c = rVox.NbtChunk(mca);
+                                // Debug.Print("{0} {1} {2}", Chunk.X, Chunk.Z, Chunk.Y);
+                                int cl = c.Height(Chunk.Xo, Chunk.Zo);
+                                if (cl > 0) cl--;
+
+                                hMap[(Chunk.Z * 512) + Chunk.X] = (byte)cl;
+                                hWMap[(Chunk.Z * 512) + Chunk.X] = 255;
+
+                                Chunk.Y = cl;
+
+                                s = rVox.NbtChunkSection(mca);
+
+                                int block = s.BlockID(Chunk.ChunkBlockPos());
+                                int blockdata = s.BlockData(Chunk.ChunkBlockPos());
+
+                                switch (block)
+                                {
+                                    case 8:
+                                    case 9:
+
+
+                                        for (int ycl = cl; ycl > 0; ycl--)
+                                        {
+
+                                            Chunk.Y = ycl;
+                                            s = rVox.NbtChunkSection(mca);
+                                            block = s.BlockID(Chunk.ChunkBlockPos());
+
+
+                                            if (block != 9 && block != 8)
+                                            {
+
+                                                hWMap[(Chunk.Z * 512) + Chunk.X] = (byte)ycl;
+
+                                                if (Blocks != null)
+                                                {
+                                                    switch (block)
+                                                    {
+                                                        case 159:
+                                                            blockdata = s.BlockData(rVox.ChunkBlockPos());
+                                                            if (blockdata > 15 || blockdata < 0)
+                                                                Blocks[(Chunk.Z * 512) + Chunk.X] = BlockColors[block][0];
+                                                            else
+                                                                Blocks[(Chunk.Z * 512) + Chunk.X] = BlockColors[block][blockdata];
+
+                                                            break;
+
+                                                        default:
+                                                            Blocks[(Chunk.Z * 512) + rVox.Chunk.X] = BlockColors[block][0];
+                                                            break;
+                                                    }
+                                                }
+
+
+                                                break;
+                                            }
+                                        }
+
+                                        break;
+
+
+                                    default:
+                                        if (Blocks != null)
+                                        {
+                                            switch (block)
+                                            {
+                                                case 159:
+
+                                                    if (blockdata > 15 || blockdata < 0)
+                                                        Blocks[(Chunk.Z * 512) + Chunk.X] = BlockColors[block][0];
+                                                    else
+                                                        Blocks[(Chunk.Z * 512) + Chunk.X] = BlockColors[block][blockdata];
+
+                                                    break;
+
+                                                default:
+                                                    Blocks[(Chunk.Z * 512) + Chunk.X] = BlockColors[block][0];
+                                                    break;
+                                            }
+                                        }
+                                        break;
+                                }
+
+
+                                /*
+                                switch (block)
+                                {
+                                    case 1://stone
+                                    case 2://grass
+                                    case 3://dirt
+                                    case 4://cobble
+                                    case 5://wood plank
+                                    case 6://sapling
+                                    case 7://bed rock
+                                    case 8://flowing water
+                                    case 9://water
+                                    case 10://flo lava
+                                    case 11://lava
+                                    case 12://sand
+                                    case 13://gravel
+                                    case 14://gold ore
+                                    case 15://iron ore
+                                    case 16://coal ore
+                                    case 17://wood
+                                    case 18://leaves
+                                    case 19://sponge
+                                    case 20://glass
+                                    case 21://lapis ore
+                                    case 22://lapis block
+                                    case 24://sandstone
+                                    case 35://wool
+                                    case 41://gold block
+                                    case 42://iron block
+                                    case 43://x2 stone slab
+                                    case 44://stone slab
+                                    case 45://bricks
+                                    case 49://obsidian
+                                    case 51://fire
+                                    case 52://monster spawner
+                                    case 56://diamond ore
+                                    case 57://diamond block
+                                    case 59://wheat crops
+                                    case 60://farmland
+                                    case 73://redstone ore
+                                    case 74://glowing redstone ore
+                                    case 78://snow
+                                    case 79://ice
+                                    case 80://snow block
+                                    case 81://cactus
+                                    case 82://clay
+                                    case 83://sugar canes
+                                    case 86://pumpkins
+                                    case 87://netherrack
+                                    case 88://soul sand
+                                    case 89://glow stone
+                                    case 90://nether portal
+                                    case 91://jack o'Lantern
+                                    case 95://stained glass
+                                    case 98://stone bricks
+                                    case 99://mushroom block (brown)
+                                    case 100://mushroom block (red)
+                                    case 103://melon block
+                                    case 110://mycelium
+                                    case 112://nether brick
+                                    case 125://x2 wood slab
+                                    case 126://wood slab
+                                    case 129://emerald ore
+                                    case 133://emerald block
+                                    case 137://command block
+                                    case 141://carrots
+                                    case 142://potatoes
+                                    case 152://redstone block
+                                    case 153://nether quartz block
+                                    case 155://quartz block
+                                        break;
+
+                                    case 159://white stained clay
+                                        switch (blockdata)
+                                        {
+
+                                            case 0://white
+                                            case 1://orange
+                                            case 2://magenta
+                                            case 3://light blue
+                                            case 4://yellow
+                                            case 5://lime
+                                            case 6://pink
+                                            case 7://gray
+                                            case 8://light gray
+                                            case 9://cyan
+                                            case 10://purple
+                                            case 11://blue
+                                            case 12://brown
+                                            case 13://green
+                                            case 14://red
+                                            case 15://black
+                                                break;
+
+                                        }
+                                        break;
+
+                                    case 160://stained glass
+                                    case 161://Acacia Leaves (0),(1) dark oak leaves
+                                    case 162://acacia wood (0), (1) dark oak wood
+                                    case 165://slime block
+                                    case 166://barrier
+                                    case 168://prismarine
+                                    case 169://sea lantern
+                                    case 170://hay bale
+                                    case 171://carpet (0-white, 1-15)
+                                    case 172://hardened clay
+                                    case 173://block of coal
+                                    case 174://packed ice
+                                    case 179://red sandstone
+                                    case 181://x2 red sandstone slab
+                                    case 182://red sandstone slab
+
+                                    default:
+                                        break;
+
+
+                                }
+                                 */
+
+
+                            }
+
+                    }
+
+
+            }
+
+        }
+        public static byte[][] RenderTopoDataFromRegion(RegionMCA mca, LibMCRcon.WorldData.Region mcr)
+        {
+
+            byte[][] topo = new byte[][] { new byte[512 * 512], new byte[512 * 512] };
+
+            RenderDataFromRegion(mca, mcr, topo);
+
+            return topo;
+
+        }
+        public static byte[][] RetrieveHDT(Voxel RV, string RegionPath)
+        {
+            byte[][] MapData = new byte[][] { new byte[512 * 512], new byte[512 * 512] };
+
+            FileInfo mcaF = new FileInfo(Path.Combine(RegionPath, string.Format("r.{0}.{1}.hdt", RV.Xs, RV.Zs)));
+            if (mcaF.Exists == true)
+            {
+                FileStream tempFS = mcaF.Open(FileMode.Open, FileAccess.Read);
+                tempFS.Read(MapData[0], 0, 512 * 512);
+                tempFS.Read(MapData[1], 0, 512 * 512);
+                tempFS.Close();
+            }
+
+            return MapData;
+        }
+
+    }
+    public static class ColorStepExtension
+    {
+
+        public static ColorStep ColorStep(this Color Color, int Steps)
+        {
+            return new ColorStep(Color, Steps);
+        }
+
+    }
+
+
+}
+
+namespace LibMCRcon.Remote
+{
+    public abstract class FTP
+    {
+
+        public abstract void Open();
+        public abstract void Close();
+        public abstract bool FindFile(string RemoteFullName);
+        public abstract bool Download(string RemoteFullName, string DownloadFullPath);
+
+        public DateTime LastWriteDT { get; set; }
+        public bool LastDownloadSuccess { get; set; }
+
+
+        public string RemoteRegionPath { get; set; }
+        public string FtpHost { get; set; }
+        public int FtpPort { get; set; }
+        public string UserName { get; set; }
+        public string Password { get; set; }
+    }
+    public class AsyncRegionProcessing<AbstractedFTP> : Queue<LibMCRcon.WorldData.Region> where AbstractedFTP : FTP, new()
+    {
+
+
+        private Thread bgThreadRegionMaps;
+        private Thread bgThreadFtp;
+        private AbstractedFTP FTP;
+
+
+        private Queue<RenderRegion> _procRegionsList = new Queue<RenderRegion>();
+        private bool _stop = false;
+        private bool _stopFTP = false;
+
+        public string RegionPath { get; set; }
+        public string ImgsPath { get; set; }
+
+        public int ProcessThreashold { get; set; }
+
+
+        private LibMCRcon.WorldData.Region RV;
+
+        public AsyncRegionProcessing()
+            : base()
+        {
+
+            bgThreadRegionMaps = new Thread(ProcessMaps);
+            bgThreadRegionMaps.IsBackground = true;
+
+            bgThreadFtp = new Thread(ProcessFTP);
+            bgThreadFtp.IsBackground = true;
+
+            ProcessThreashold = 3;
+
+            FTP = new AbstractedFTP();
+        }
+
+        public AsyncRegionProcessing(string RegionPath, string ImgsPath)
+            : this()
+        {
+
+            this.RegionPath = RegionPath;
+            this.ImgsPath = ImgsPath;
+
+        }
+        public AsyncRegionProcessing(string RegionPath, string ImgsPath, string RemoteRegionPath, string FtpAddress, int FtpPort, string UserName, string Password)
+            : this(RegionPath, ImgsPath)
+        {
+
+            FTP.RemoteRegionPath = RemoteRegionPath;
+            FTP.FtpHost = FtpAddress;
+            FTP.FtpPort = FtpPort;
+            FTP.UserName = UserName;
+            FTP.Password = Password;
+
+
+        }
+
+
+        public static LibMCRcon.WorldData.Region[] RegionsVoxelCentered<F>(AsyncRegionProcessing<F> ARP, Voxel Location) where F:FTP, new()
+        {
+            LibMCRcon.WorldData.Region Q1 = new LibMCRcon.WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
+            LibMCRcon.WorldData.Region Q2 = new LibMCRcon.WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
+            LibMCRcon.WorldData.Region Q3 = new LibMCRcon.WorldData.Region(Location.X + 255, Location.Yo, Location.Z + 255);
+            LibMCRcon.WorldData.Region Q4 = new LibMCRcon.WorldData.Region(Location.X - 256, Location.Yo, Location.Z + 255);
+
+            ARP.Enqueue(Q1);
+            ARP.Enqueue(Q2);
+            ARP.Enqueue(Q3);
+            ARP.Enqueue(Q4);
+
+            return new LibMCRcon.WorldData.Region[] { Q1, Q2, Q3, Q4 };
+
+        }
+
+        public static LibMCRcon.WorldData.Region[] RegionsVoxelCentered(Voxel Location)
+        {
+            LibMCRcon.WorldData.Region Q1 = new LibMCRcon.WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
+            LibMCRcon.WorldData.Region Q2 = new LibMCRcon.WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
+            LibMCRcon.WorldData.Region Q3 = new LibMCRcon.WorldData.Region(Location.X + 255, Location.Yo, Location.Z + 255);
+            LibMCRcon.WorldData.Region Q4 = new LibMCRcon.WorldData.Region(Location.X - 256, Location.Yo, Location.Z + 255);
+
+            return new LibMCRcon.WorldData.Region[] { Q1, Q2, Q3, Q4 };
+
+        }
+
+
+        private void ProcessFTP()
+        {
+
+
+            List<FileInfo> filesTransfered = new List<FileInfo>();
+
+
+
+            do
+            {
+                try
+                {
+                    if (Count > 0)
+                    {
+
+                        FTP.Open();
+
+
+                        while (Count > 0)
+                        {
+
+                            RV = Dequeue();
+
+
+
+                            DateTime lastCheckTS = DateTime.MinValue;
+                            DateTime latestFileTS = lastCheckTS;
+
+                            string regionFile = string.Format(@"r.{0}.{1}.mca", RV.Xs, RV.Zs);
+                            string regionHeightDataFile = string.Format(@"r.{0}.{1}.hdt", RV.Xs, RV.Zs);
+
+                            string ftpFile = string.Format(@"{0}/{1}", FTP.RemoteRegionPath, regionFile);
+                            string localFile = Path.Combine(RegionPath, regionFile);
+                            string localHdtFile = Path.Combine(RegionPath, regionHeightDataFile);
+
+
+                            FileInfo lcFile = new FileInfo(localHdtFile);
+                            DateTime ft = DateTime.MinValue;
+
+                            if (FTP.FindFile(ftpFile))
+                            {
+
+                                ft = FTP.LastWriteDT;
+                                if (lcFile.Exists)
+                                {
+                                    TimeSpan diff = ft - lcFile.LastWriteTime;
+                                    if (diff.Minutes > 5)
+                                    {
+                                        if (FTP.Download(ftpFile, localFile))
+                                            _procRegionsList.Enqueue(new RenderRegion(RV, localFile, RegionPath, ImgsPath, ft));
+
+                                    }
+                                    else
+                                        _procRegionsList.Enqueue(new RenderRegion(RV, localHdtFile, RegionPath, ImgsPath, ft));
+                                }
+                                else
+                                {
+                                    if (FTP.Download(ftpFile, localFile))
+                                        _procRegionsList.Enqueue(new RenderRegion(RV, localFile, RegionPath, ImgsPath, ft));
+                                }
+
+                            }
+                        }
+
+                        FTP.Close();
+
+                    }
+
+                    Thread.Sleep(2000);
+
+                    while (Count == 0)
+                    {
+                        if (_stopFTP == true)
+                            return;
+                        Thread.Sleep(100);
+                    }
+
+                }
+
+                catch (Exception)
+                {
+                    Enqueue(RV);
+                    break;
+                }
+            }
+            while (_stopFTP == false);
+
+
+
+        }
+
+        private void ProcessMaps()
+        {
+            RenderRegion rr;
+
+            do
+            {
+
+                int rrcount = 0;
+                while (_procRegionsList.Count > 0)
+                {
+                    rrcount++;
+
+                    if (rrcount > 3 && _procRegionsList.Count > 0)
+                        rrcount = 0;
+
+                    lock (_procRegionsList)
+                    {
+                        rr = _procRegionsList.Dequeue();
+                        rr.Start();
+                    }
+
+                    if (rrcount > 0)
+                        rr.Finish();
+
+                    Thread.Sleep(1);
+
+                    rr = null;
+                }
+
+                Thread.Sleep(100);
+            } while (_stop == false);
+        }
+
+        public void Start()
+        {
+
+            _stop = false;
+            _stopFTP = false;
+
+            if (bgThreadRegionMaps.IsAlive == false)
+                bgThreadRegionMaps.Start();
+
+            if (bgThreadFtp.IsAlive == false)
+                bgThreadFtp.Start();
+
+        }
+
+        public void Finish()
+        {
+
+            FinishFtp();
+            FinishMaps();
+        }
+
+        public void FinishMaps()
+        {
+
+            _stop = true;
+
+            if (bgThreadRegionMaps.IsAlive == true)
+                bgThreadRegionMaps.Join();
+
+            bgThreadRegionMaps = new Thread(ProcessMaps);
+            bgThreadRegionMaps.IsBackground = true;
+
+        }
+
+        public void FinishFtp()
+        {
+            _stopFTP = true;
+            if (bgThreadFtp.IsAlive == true)
+                bgThreadFtp.Join();
+
+            bgThreadFtp = new Thread(ProcessFTP);
+            bgThreadFtp.IsBackground = true;
+        }
+
+        public void Stop()
+        {
+            _stop = true;
+            Finish();
+        }
+
+        private class RenderRegion
+        {
+
+            Thread bgThread;
+
+            public LibMCRcon.WorldData.Region RV { get; set; }
+            public FileInfo ProcessFile { get; set; }
+            public DirectoryInfo RegionsDir { get; set; }
+            public DirectoryInfo ImgsDir { get; set; }
+            public DateTime FtpFileTime { get; set; }
+            public Boolean Done { get; private set; }
+
+            public RenderRegion() { bgThread = new Thread(Process); bgThread.IsBackground = true; }
+            public RenderRegion(LibMCRcon.WorldData.Region RV, string ProcessFile, string RegionDirectory, string ImgsDirectory, DateTime FtpFileTime)
+                : this()
+            {
+                this.ProcessFile = new FileInfo(ProcessFile);
+                this.RegionsDir = new DirectoryInfo(RegionDirectory);
+                this.ImgsDir = new DirectoryInfo(ImgsDirectory);
+                this.FtpFileTime = FtpFileTime;
+                this.RV = RV;
+            }
+
+            public void Start()
+            {
+                if (bgThread.IsAlive == true)
+                    return;
+                else
+                    bgThread.Start();
+            }
+            public void Finish()
+            {
+
+                if (bgThread.IsAlive)
+                    bgThread.Join();
+            }
+            public void Abort()
+            {
+                if (bgThread.IsAlive)
+                    bgThread.Abort();
+            }
+
+            private void Process()
+            {
+                Done = false;
+
+                RegionMCA mca = new RegionMCA(RegionsDir.FullName);
+
+                if (ProcessFile.Extension.ToUpper() == ".MCA")
+                {
+                    mca.LoadRegion(RV.Xs, RV.Zs);
+
+
+                    byte[][] MapData = new byte[][] { new byte[512 * 512], new byte[512 * 512] };
+                    Color[] BlockData = new Color[512 * 512];
+
+
+                    LibMCRcon.Rendering.MCRegionMaps.RenderDataFromRegion(mca, RV, MapData, BlockData);
+                    LibMCRcon.Rendering.MCRegionMaps.RenderTopoPngFromRegion(MapData, ImgsDir.FullName, RV);
+                    LibMCRcon.Rendering.MCRegionMaps.RenderBlockPngFromRegion(MapData, BlockData, ImgsDir.FullName, RV);
+
+
+                    FileInfo mcaH = new FileInfo(Path.Combine(RegionsDir.FullName, Path.GetFileNameWithoutExtension(ProcessFile.Name) + ".hdt"));
+
+                    FileStream tempFS = mcaH.Create();
+
+                    tempFS.Write(MapData[0], 0, 512 * 512);
+                    tempFS.Write(MapData[1], 0, 512 * 512);
+                    tempFS.Flush();
+                    tempFS.Close();
+
+
+                    mcaH.LastWriteTime = FtpFileTime;
+                    ProcessFile.Delete();
+                }
+                else
+                {
+                    byte[][] MapData = new byte[][] { new byte[512 * 512], new byte[512 * 512] };
+
+                    FileStream tempFS = ProcessFile.Open(FileMode.Open, FileAccess.Read);
+
+                    tempFS.Read(MapData[0], 0, 512 * 512);
+                    tempFS.Read(MapData[1], 0, 512 * 512);
+                    tempFS.Close();
+
+
+                    LibMCRcon.Rendering.MCRegionMaps.RenderTopoPngFromRegion(MapData, ImgsDir.FullName, RV);
+
+                }
+
+                Done = true;
+            }
+        }
+
+    }
+ 
 }

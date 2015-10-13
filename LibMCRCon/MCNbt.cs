@@ -8,7 +8,7 @@ using System.Collections;
 using System.Drawing;
 
 
-namespace NBT
+namespace LibMCRcon.Nbt
 {
 
     public enum NbtType

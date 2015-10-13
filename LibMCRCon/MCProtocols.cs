@@ -8,10 +8,10 @@ using System.IO;
 using System.IO.Compression;
 using zlib;
 
-using NBT;
+using LibMCRcon.Nbt;
 
   
-namespace Network
+namespace LibMCRcon.Network
 {
     public enum mcProtoStates { HandShake, Play }
     public enum mcProtoTargets { Server , Client }

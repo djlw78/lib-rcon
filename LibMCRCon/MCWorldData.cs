@@ -7,13 +7,218 @@ using System.IO;
 using System.Collections;
 
 
-using NBT;
-using WorldData;
+using LibMCRcon.Nbt;
 
-
-namespace WorldData
+namespace LibMCRcon.WorldData
 {
-    
+
+    public class ChunkMCA
+    {
+        public int chunksectorsize { get; protected set; }
+        public DateTime timestamp { get; protected set; }
+
+        public byte[] chunkdata { get; private set; }
+        public bool chunkloaded { get; private set; }
+        public bool chunkexists { get; private set; }
+
+        public ChunkMCA()
+        {
+
+            chunksectorsize = 0;
+            chunkdata = new byte[4096];
+            chunkexists = false;
+
+
+        }
+        public ChunkMCA(int ChunkOffset, int ChunkSectorsSize, Stream readstream)
+        {
+
+
+            chunksectorsize = ChunkSectorsSize;
+            chunkdata = new byte[chunksectorsize];
+
+            if (ChunkOffset > 0)
+            {
+                chunkexists = true;
+
+
+                if (readstream.Read(chunkdata, 0, chunksectorsize) == chunksectorsize)
+
+                    chunkloaded = true;
+
+                else
+                    chunkloaded = false;
+            }
+            else
+            {
+                chunkexists = false;
+                chunkloaded = false;
+            }
+
+
+
+
+        }
+
+
+        public NbtCompound chunkNBT
+        {
+            get
+            {
+                if (chunkexists == false)
+                    return null;
+
+                MemoryStream ms;
+
+
+                byte[] int32data = new byte[4];
+                byte[] int16data = new byte[2];
+
+                // byte[] chunkraw = new byte[0xfa000];
+
+                Array.Copy(chunkdata, 0, int32data, 0, 4);
+                if (BitConverter.IsLittleEndian) Array.Reverse(int32data);
+
+                Array.Copy(chunkdata, 5, int16data, 0, 2);
+                if (BitConverter.IsLittleEndian) Array.Reverse(int16data);
+
+                int zcomp = chunkdata[4];
+                int chunksize = BitConverter.ToInt32(int32data, 0);
+                int zcomphdr = BitConverter.ToInt16(int16data, 0);
+
+                //ms = new MemoryStream(chunkdata, 7, chunksize - 3);
+                ms = new MemoryStream(chunkdata);
+                ms.Seek(7, SeekOrigin.Begin);
+
+                DeflateStream zlib = new DeflateStream(ms, CompressionMode.Decompress);
+
+                NbtBase nbt = NbtReader.ReadTag(zlib);
+                zlib.Close();
+
+                return (NbtCompound)nbt;
+
+
+
+            }
+        }
+
+    }
+    public class RegionMCA
+    {
+
+
+        Int32[] chunkhdr = new Int32[1024];
+        Int32[] chunksect = new Int32[1024];
+        DateTime[] timehdr = new DateTime[1024];
+
+        ChunkMCA[] chunks = new ChunkMCA[1024];
+
+        int lastX = -1;
+        int lastZ = -1;
+
+        public int Count { get; set; }
+
+        string mcaFilePath = string.Empty;
+
+        public RegionMCA()
+        {
+
+            lastX = int.MaxValue;
+            lastZ = int.MaxValue;
+
+        }
+
+        public RegionMCA(string regionPath)
+            : this()
+        {
+            mcaFilePath = regionPath;
+        }
+
+        public void SaveRegion()
+        {
+            if (lastX == -1 && lastZ == -1)
+                return;
+
+
+        }
+        public void LoadRegion(int RegionX, int RegionZ)
+        {
+
+            if (lastX != RegionX || lastZ != RegionZ)
+            {
+                lastX = RegionX;
+                lastZ = RegionZ;
+
+
+                DirectoryInfo regionDir = new DirectoryInfo(mcaFilePath);
+                FileInfo f = new FileInfo(Path.Combine(regionDir.FullName, string.Format("r.{0}.{1}.mca", lastX, lastZ)));
+
+                if (f.Exists)
+                {
+
+                    for (int c = 0; c < 1024; c++)
+                        chunks[c] = null;
+
+                    Count = 0;
+
+
+                    FileStream fs = f.OpenRead();
+
+                    for (int c = 0; c < 1024; c++)
+                    {
+                        chunkhdr[c] = NbtReader.TagInt24(fs) * 4096;
+                        chunksect[c] = NbtReader.TagByte(fs) * 4096;
+                    }
+
+                    for (int c = 0; c < 1024; c++)
+                        timehdr[c] = DateTime.FromBinary(NbtReader.TagInt(fs));
+
+
+                    for (int c = 0; c < 1024; c++)
+                    {
+
+                        try
+                        {
+                            fs.Seek(chunkhdr[c], SeekOrigin.Begin);
+                            chunks[c] = new ChunkMCA(chunkhdr[c], chunksect[c], fs);
+                            Count += 1;
+                        }
+                        catch (Exception)
+                        {
+                            break;
+                        }
+
+                    }
+
+                    fs.Close();
+
+                }
+            }
+
+        }
+
+        public ChunkMCA this[int index]
+        {
+            get
+            {
+                if (Count == 0 || Count < index)
+                    return null;
+                return chunks[index];
+            }
+        }
+        public ChunkMCA this[int ChunkX, int ChunkZ]
+        {
+            get
+            {
+                return this[(ChunkZ * 32) + ChunkX];
+            }
+        }
+
+        public bool IsLoaded { get { return Count > 0; } }
+
+
+    }
+
     public class NbtChunk
     {
 
@@ -156,6 +361,8 @@ namespace WorldData
             return blocks;
         }
 
+
+
     }
     public class NbtChunkSection
     {
@@ -285,562 +492,275 @@ namespace WorldData
 
         }
 
+
     }
 
-    public class ChunkMCA
+
+
+
+    public class Voxel
     {
-        public int chunksectorsize { get; protected set; }
-        public DateTime timestamp { get; protected set; }
 
-        public byte[] chunkdata { get; private set; }
-        public bool chunkloaded { get; private set; }
-        public bool chunkexists { get; private set; }
-
-        public ChunkMCA()
+        public static int Segment(int Size, int Ordinate)
         {
-
-            chunksectorsize = 0;
-            chunkdata = new byte[4096];
-            chunkexists = false;
-
-
+            return Ordinate < 0 ? -(((Ordinate * -1) / Size) + 1) : Ordinate / Size;
         }
-        public ChunkMCA(int ChunkOffset, int ChunkSectorsSize, Stream readstream)
+        public static int Offset(int Size, int Ordinate)
+        {
+            return Ordinate < 0 ? Size - ((Ordinate * -1) - (((Ordinate * -1) / Size) * Size)) : Ordinate - ((Ordinate / Size) * Size);
+        }
+        public static int Ordinate(int Size, int Segment, int Offset)
         {
 
 
-            chunksectorsize = ChunkSectorsSize;
-            chunkdata = new byte[chunksectorsize];
-
-            if (ChunkOffset > 0)
-            {
-                chunkexists = true;
-
-
-                if (readstream.Read(chunkdata, 0, chunksectorsize) == chunksectorsize)
-
-                    chunkloaded = true;
-
-                else
-                    chunkloaded = false;
-            }
+            if (Segment < 0)
+                return -(((Segment * -1) * Size) - Offset);
             else
-            {
-                chunkexists = false;
-                chunkloaded = false;
-            }
-
-
+                return (Segment * Size) + Offset;
 
 
         }
 
+        //YXZ
+        public int[] V { get; internal set; }
+        public int[] S { get; internal set; }
+        public int[] Sz { get; internal set; }
 
-        public NbtCompound chunkNBT
+
+        public Voxel() { V = new int[3] { 0, 0, 0 }; S = new int[3] { 0, 0, 0 }; Sz = new int[3] { 256, 512, 512 }; IsValid = true; }
+        public Voxel(int y, int x, int z)
         {
-            get
-            {
-                if (chunkexists == false)
-                    return null;
-
-                MemoryStream ms;
-
-
-                byte[] int32data = new byte[4];
-                byte[] int16data = new byte[2];
-
-                // byte[] chunkraw = new byte[0xfa000];
-
-                Array.Copy(chunkdata, 0, int32data, 0, 4);
-                if (BitConverter.IsLittleEndian) Array.Reverse(int32data);
-
-                Array.Copy(chunkdata, 5, int16data, 0, 2);
-                if (BitConverter.IsLittleEndian) Array.Reverse(int16data);
-
-                int zcomp = chunkdata[4];
-                int chunksize = BitConverter.ToInt32(int32data, 0);
-                int zcomphdr = BitConverter.ToInt16(int16data, 0);
-
-                //ms = new MemoryStream(chunkdata, 7, chunksize - 3);
-                ms = new MemoryStream(chunkdata);
-                ms.Seek(7, SeekOrigin.Begin);
-
-                DeflateStream zlib = new DeflateStream(ms, CompressionMode.Decompress);
-
-                NbtBase nbt = NbtReader.ReadTag(zlib);
-                zlib.Close();
-
-                return (NbtCompound)nbt;
-
-
-
-            }
+            Sz = new int[3] { 256, 512, 512 };
+            V = new int[3] { Offset(Sz[0], y), Offset(Sz[1], x), Offset(Sz[2], z) };
+            S = new int[3] { Segment(Sz[0], y), Segment(Sz[1], x), Segment(Sz[2], z) };
+            IsValid = true;
         }
+        public Voxel(int y, int x, int z, int YSize, int XZSize)
+        {
+            Sz = new int[3] { YSize, XZSize, XZSize };
+            V = new int[3] { Offset(Sz[0], y), Offset(Sz[1], x), Offset(Sz[2], z) };
+            S = new int[3] { Segment(Sz[0], y), Segment(Sz[1], x), Segment(Sz[2], z) };
+            IsValid = true;
+        }
+        public Voxel(Voxel Voxel)
+        {
+            Sz = new int[3] { Voxel.Sz[0], Voxel.Sz[1], Voxel.Sz[2] };
+            V = new int[3] { Voxel.V[0], Voxel.V[1], Voxel.V[2] };
+            S = new int[3] { Voxel.S[0], Voxel.S[1], Voxel.S[2] };
+            IsValid = true;
+        }
+
+
+        public void SetVoxel(int y, int x, int z)
+        {
+            S[0] = Segment(Sz[0], y);
+            S[1] = Segment(Sz[1], x);
+            S[2] = Segment(Sz[2], z);
+
+            V[0] = Offset(Sz[0], y);
+            V[1] = Offset(Sz[1], x);
+            V[2] = Offset(Sz[2], z);
+        }
+        public void SetVoxel(int y, int x, int z, int YSize, int XZSize)
+        {
+
+            Sz[0] = YSize;
+            Sz[1] = XZSize;
+            Sz[2] = XZSize;
+
+            SetVoxel(y, x, z);
+
+        }
+        public void SetVoxel(Voxel Voxel)
+        {
+            SetVoxel(Voxel.Y, Voxel.X, Voxel.Z);
+        }
+
+
+        public void SetSegment(int xSeg, int zSeg)
+        {
+            S[1] = xSeg;
+            S[2] = zSeg;
+
+        }
+        public void SetSegmentOffset(int xSeg, int zSeg, int xOff, int zOff)
+        {
+            S[1] = xSeg;
+            S[2] = zSeg;
+            V[1] = xOff;
+            V[2] = zOff;
+
+
+        }
+
+        public Voxel SegmentAlignedVoxel()
+        {
+            int y = Ordinate(Sz[0], S[0], 0);
+            int x = Ordinate(Sz[1], S[1], 0);
+            int z = Ordinate(Sz[2], S[2], 0);
+
+            return new Voxel(y, x, z, Sz[0], Sz[1]);
+        }
+        public Voxel SegmentAlignedVoxel(int YSize, int XZSize)
+        {
+            int y = Ordinate(Sz[0], S[0], 0);
+            int x = Ordinate(Sz[1], S[1], 0);
+            int z = Ordinate(Sz[2], S[2], 0);
+
+            return new Voxel(y, x, z, YSize, XZSize);
+
+        }
+
+        public Voxel OffsetVoxel(int YSize, int XZSize)
+        {
+            return new Voxel(V[0], V[1], V[2], YSize, XZSize);
+        }
+
+        public void SetOffset(int y, int x, int z)
+        {
+            V[0] = y;
+            V[1] = x;
+            V[2] = z;
+        }
+        public void SetOffset(Voxel Voxel)
+        {
+            V[0] = Voxel.Y;
+            V[1] = Voxel.X;
+            V[2] = Voxel.Z;
+
+        }
+
+        public int Y
+        {
+            get { return Ordinate(Sz[0], S[0], V[0]); }
+            set { S[0] = Segment(Sz[0], value); V[0] = Offset(Sz[0], value); }
+        }
+        public int X
+        {
+            get { return Ordinate(Sz[1], S[1], V[1]); }
+            set { S[1] = Segment(Sz[1], value); V[1] = Offset(Sz[1], value); }
+        }
+        public int Z
+        {
+            get { return Ordinate(Sz[2], S[2], V[2]); }
+            set { S[2] = Segment(Sz[2], value); V[2] = Offset(Sz[2], value); }
+        }
+
+        public int Ys { get { return S[0]; } set { S[0] = value; } }
+        public int Xs { get { return S[1]; } set { S[1] = value; } }
+        public int Zs { get { return S[2]; } set { S[2] = value; } }
+
+        public int Yo { get { return V[0]; } set { V[0] = value; } }
+        public int Xo { get { return V[1]; } set { V[1] = value; } }
+        public int Zo { get { return V[2]; } set { V[2] = value; } }
+
+        public bool IsValid { get; set; }
+
+        public int ChunkIdx() { return (S[2] * 32) + S[1]; }
+        public int ChunkZXIdx() { return (V[2] * 16) + V[1]; }
+        public int ChunkBlockPos() { return (V[0] * 16 * 16) + (V[2] * 16) + V[1]; }
 
     }
-    public class RegionMCA
+    public static class MinecraftOrdinates
+    {
+        public static Voxel Region() { return new Voxel(0, 0, 0, int.MaxValue, 512); }
+        public static Voxel Region(int y, int x, int z) { return new Voxel(y, x, z, int.MaxValue, 512); }
+        public static Voxel Region(Voxel Voxel) { return new Voxel(Voxel.Y, Voxel.X, Voxel.Z, int.MaxValue, 512); }
+
+        public static Voxel Chunk() { return new Voxel(0, 0, 0, 16, 16); }
+        public static Voxel Chunk(int y, int x, int z) { return new Voxel(y, x, z, 16, 16); }
+        public static Voxel Chunk(Voxel Voxel) { return Voxel.OffsetVoxel(16, 16); }
+
+        public static int ChunkIdx(Voxel Chunk) { return (Chunk.Zs * 32) + Chunk.Xs; }
+        public static int ChunkZXidx(Voxel Chunk) { return (Chunk.Zo * 16) + Chunk.Xo; }
+        public static int ChunkBlockPos(Voxel Chunk) { return (Chunk.Yo * 16 * 16) + (Chunk.Zo * 16) + Chunk.Xo; }
+
+    }
+
+    public class Region : Voxel
     {
 
+        public Region() : base() { Chunk = OffsetVoxel(16, 16); }
+        public Region(int x, int y, int z) : base(y, x, z) { Chunk = OffsetVoxel(16, 16); }
+        public Region(Voxel Voxel) : base(Voxel.SegmentAlignedVoxel()) { Chunk = OffsetVoxel(16, 16); }
 
-        Int32[] chunkhdr = new Int32[1024];
-        Int32[] chunksect = new Int32[1024];
-        DateTime[] timehdr = new DateTime[1024];
+        public Voxel Chunk { get; private set; }
 
-        ChunkMCA[] chunks = new ChunkMCA[1024];
+        NbtChunk nbtChunk;
+        NbtChunkSection[] nbtChunkSection = new NbtChunkSection[16];
 
-        int lastX = -1;
-        int lastZ = -1;
+        int lastChunkIdx = int.MaxValue;
+        int lastYSect = int.MaxValue;
 
-        public int Count { get; set; }
-
-        string mcaFilePath = string.Empty;
-
-        public RegionMCA()
+        private void ChunkLoad(RegionMCA mca, Voxel Chunk)
         {
-
-            lastX = int.MaxValue;
-            lastZ = int.MaxValue;
-
-        }
-
-        public RegionMCA(string regionPath)
-            : this()
-        {
-            mcaFilePath = regionPath;
-        }
-
-        public void SaveRegion()
-        {
-            if (lastX == -1 && lastZ == -1)
-                return;
-
-
-        }
-
-        public void LoadRegion(int RegionX, int RegionZ)
-        {
-
-            if (lastX != RegionX || lastZ != RegionZ)
+            int idx = Chunk.ChunkIdx();
+            if (idx != lastChunkIdx)
             {
-                lastX = RegionX;
-                lastZ = RegionZ;
-
-
-                DirectoryInfo regionDir = new DirectoryInfo(mcaFilePath);
-                FileInfo f = new FileInfo(Path.Combine(regionDir.FullName, string.Format("r.{0}.{1}.mca", lastX, lastZ)));
-
-                if (f.Exists)
-                {
-
-                    for (int c = 0; c < 1024; c++)
-                        chunks[c] = null;
-
-                    Count = 0;
-
-
-                    FileStream fs = f.OpenRead();
-
-                    for (int c = 0; c < 1024; c++)
-                    {
-                        chunkhdr[c] = NBT.NbtReader.TagInt24(fs) * 4096;
-                        chunksect[c] = NBT.NbtReader.TagByte(fs) * 4096;
-                    }
-
-                    for (int c = 0; c < 1024; c++)
-                        timehdr[c] = DateTime.FromBinary(NBT.NbtReader.TagInt(fs));
-
-
-                    for (int c = 0; c < 1024; c++)
-                    {
-
-                        try
-                        {
-                            fs.Seek(chunkhdr[c], SeekOrigin.Begin);
-                            chunks[c] = new ChunkMCA(chunkhdr[c], chunksect[c], fs);
-                            Count += 1;
-                        }
-                        catch (Exception)
-                        {
-                            break;
-                        }
-
-                    }
-
-                    fs.Close();
-
-                }
+                nbtChunk = new NbtChunk(mca[idx].chunkNBT);
+                lastYSect = int.MaxValue;
+                lastChunkIdx = idx;
             }
 
+
         }
 
-        public ChunkMCA this[int index]
+        private void ChunkYSectLoad(RegionMCA mca, Voxel Chunk)
         {
-            get
+            int idx = Chunk.Ys;
+
+            if (idx != lastYSect)
             {
-                if (Count == 0 || Count < index)
-                    return null;
-                return chunks[index];
-            }
-        }
-        public ChunkMCA this[int ChunkX, int ChunkZ]
-        {
-            get
-            {
-                return this[(ChunkZ * 32) + ChunkX];
+                NbtCompound nbtComp = nbtChunk.Section(idx);
+                nbtChunkSection[idx] = new NbtChunkSection(nbtComp);
+                lastYSect = idx;
             }
         }
 
-        public bool IsLoaded { get { return Count > 0; } }
+        public NbtChunk NbtChunk(RegionMCA mca, Voxel Chunk)
+        {
 
+            ChunkLoad(mca, Chunk);
+            return nbtChunk;
+
+        }
+        public NbtChunk NbtChunk(RegionMCA mca)
+        {
+
+            ChunkLoad(mca, Chunk);
+            return nbtChunk;
+        }
+
+        public NbtChunkSection NbtChunkSection(RegionMCA mca, Voxel Chunk)
+        {
+
+            ChunkLoad(mca, Chunk);
+            ChunkYSectLoad(mca, Chunk);
+
+            return nbtChunkSection[lastYSect];
+        }
+        public NbtChunkSection NbtChunkSection(RegionMCA mca)
+        {
+
+            ChunkLoad(mca, Chunk);
+            ChunkYSectLoad(mca, Chunk);
+
+            return nbtChunkSection[lastYSect];
+        }
+        public NbtChunkSection NbtChunSection()
+        {
+            return nbtChunkSection[lastYSect];
+        }
+
+        public void RefreshChunk()
+        {
+            Chunk.SetVoxel(Y, Xo, Zo, 16, 16);
+        }
+        public void MergeChunk()
+        {
+            SetOffset(Chunk);
+        }
 
     }
 
-  
 }
-
-namespace WorldData.Ordinates
-    {
-
-        public class Voxel
-        {
-
-            public static int ZoneAxis(int Size, int Axis)
-            {
-                return Axis < 0 ? -((((Axis * -1) - 1) / Size) + 1) : Axis / Size;
-            }
-            public static int OffsetAxis(int Size, int Axis)
-            {
-                return Axis < 0 ? Size - ((Axis * -1) - ((((Axis * -1) - 1) / Size) * Size)) : Axis - ((Axis / Size) * Size);
-            }
-            public static int Axis(int Size, int Zone, int Offset)
-            {
-                return (Zone * Size) + Offset;
-            }
-
-            public int[] V { get; internal set; }
-
-
-            public Voxel() { V = new int[3] { 0, 0, 0 }; IsValid = true; }
-            public Voxel(int y, int x, int z) { V = new int[3] { y, x, z }; IsValid = true; }
-            public Voxel(Voxel Voxel) { this.V = new int[3] { Voxel.Y, Voxel.X, Voxel.Z }; IsValid = true; }
-
-            public void SetVoxel(int y, int x, int z)
-            {
-                Y = y;
-                X = x;
-                Z = z;
-            }
-            public void SetVoxel(Voxel Voxel)
-            {
-                Y = Voxel.Y;
-                X = Voxel.X;
-                Z = Voxel.Z;
-            }
-            public void MergeVoxel(Voxel Voxel)
-            {
-                Voxel.V = V;
-            }
-
-            public int X { get { return V[1]; } set { V[1] = value; } }
-            public int Z { get { return V[2]; } set { V[2] = value; } }
-            public int Y { get { return V[0]; } set { V[0] = value; } }
-
-            public int ZoneX(int xZoneSize)
-            {
-                return X < 0 ? -((((X * -1) - 1) / xZoneSize) + 1) : X / xZoneSize;
-            }
-            public int ZoneY(int yZoneSize)
-            {
-                return Y < 0 ? -((((Y * -1) - 1) / yZoneSize) + 1) : Y / yZoneSize;
-            }
-            public int ZoneZ(int zZoneSize)
-            {
-                return Z < 0 ? -((((Z * -1) - 1) / zZoneSize) + 1) : Z / zZoneSize;
-            }
-
-            public int OffsetX(int xZoneSize)
-            {
-                return X < 0 ? xZoneSize - ((X * -1) - ((((X * -1) - 1) / xZoneSize) * xZoneSize)) : X - ((X / xZoneSize) * xZoneSize);
-            }
-            public int OffsetY(int yZoneSize)
-            {
-                return Y < 0 ? yZoneSize - ((Y * -1) - ((((Y * -1) - 1) / yZoneSize) * yZoneSize)) : Y - ((Y / yZoneSize) * yZoneSize);
-            }
-            public int OffsetZ(int zZoneSize)
-            {
-                return Z < 0 ? zZoneSize - ((Z * -1) - ((((Z * -1) - 1) / zZoneSize) * zZoneSize)) : Z - ((Z / zZoneSize) * zZoneSize);
-            }
-
-            public bool IsValid { get; set; }
-
-        }
-
-        public class VoxelZone : Voxel
-        {
-
-            public int[] Dimensions { get; internal set; }
-
-            private Voxel _Zone;
-            private Voxel _Offset;
-
-            public VoxelZone()
-                : base(0, 0, 0)
-            {
-                Dimensions = new int[3] { int.MaxValue, 512, 512 };
-                _Zone = new Voxel(0, 0, 0);
-                _Offset = new Voxel(0, 0, 0);
-            }
-            public VoxelZone(int y, int x, int z)
-                : base(y, x, z)
-            {
-                Dimensions = new int[3] { int.MaxValue, 512, 512 };
-                _Zone = new Voxel();
-                _Offset = new Voxel();
-
-                ResetZoneOffset();
-            }
-            public VoxelZone(int y, int x, int z, int ySize, int xSize, int zSize)
-                : base(y, x, z)
-            {
-                Dimensions = new int[3] { ySize, xSize, zSize };
-                _Zone = new Voxel();
-                _Offset = new Voxel();
-
-                ResetZoneOffset();
-            }
-            public VoxelZone(Voxel Voxel, int ySize, int xSize, int zSize)
-                : base(Voxel)
-            {
-                Dimensions = new int[3] { ySize, xSize, zSize };
-                _Zone = new Voxel();
-                _Offset = new Voxel();
-
-                ResetZoneOffset();
-            }
-
-            public Voxel Zone { get { return _Zone; } set { UpdateZone(value); } }
-            public Voxel Offset { get { return _Offset; } set { UpdateOffset(value); } }
-
-            public VoxelZone LinkedOffset(int ySize, int xSize, int zSize)
-            {
-                VoxelZone v = new VoxelZone(_Offset, ySize, xSize, zSize);
-                _Offset.MergeVoxel(v);
-
-                return v;
-            }
-
-            public new int ZoneX { get { return _Zone.X; } set { X = Axis(Dimensions[1], value, OffsetX); _Zone.X = value; } }
-            public new int ZoneY { get { return _Zone.Y; } set { Y = Axis(Dimensions[0], value, OffsetY); _Zone.Y = value; } }
-            public new int ZoneZ { get { return _Zone.Z; } set { Z = Axis(Dimensions[2], value, OffsetZ); _Zone.Z = value; } }
-
-            public new int OffsetX { get { return _Offset.X; } set { X = Axis(Dimensions[1], ZoneX, value); _Offset.X = value; } }
-            public new int OffsetY { get { return _Offset.Y; } set { Y = Axis(Dimensions[0], ZoneY, value); _Offset.Y = value; } }
-            public new int OffsetZ { get { return _Offset.Z; } set { Z = Axis(Dimensions[2], ZoneZ, value); _Offset.Z = value; } }
-
-            public void ResetZoneOffset()
-            {
-                _Zone.X = ZoneX(Dimensions[1]);
-                _Zone.Y = ZoneY(Dimensions[0]);
-                _Zone.Z = ZoneZ(Dimensions[2]);
-
-                _Offset.X = OffsetX(Dimensions[1]);
-                _Offset.Y = OffsetY(Dimensions[0]);
-                _Offset.Z = OffsetZ(Dimensions[2]);
-
-
-            }
-            public void ResetVoxel()
-            {
-                X = Axis(Dimensions[1], ZoneX, OffsetX);
-                Y = Axis(Dimensions[0], ZoneY, OffsetY);
-                Z = Axis(Dimensions[2], ZoneZ, OffsetZ);
-            }
-
-            public void UpdateVoxel(Voxel Voxel)
-            {
-                SetVoxel(Voxel);
-                ResetZoneOffset();
-            }
-            public void UpdateVoxel(int y, int x, int z)
-            {
-                SetVoxel(y, x, z);
-                ResetZoneOffset();
-            }
-
-
-            public void UpdateZone(Voxel Voxel)
-            {
-                _Zone.SetVoxel(Voxel);
-                ResetVoxel();
-            }
-            public void UpdateZone(int y, int x, int z)
-            {
-                _Zone.SetVoxel(y, x, z);
-                ResetVoxel();
-            }
-
-            public void UpdateOffset(Voxel Voxel)
-            {
-                _Offset.SetVoxel(Voxel);
-                ResetVoxel();
-
-            }
-            public void UpdateOffset(int y, int x, int z)
-            {
-                _Offset.SetVoxel(y, x, z);
-                ResetVoxel();
-
-            }
-
-
-        }
-
-        public class VoxelRegion : VoxelZone
-        {
-
-
-            public VoxelZone Chunk { get; set; }
-
-            public VoxelRegion() : base(0, 0, 0, int.MaxValue, 512, 512) { Chunk = LinkedOffset(16, 16, 16); }
-            public VoxelRegion(int y, int x, int z) : base(y, x, z, int.MaxValue, 512, 512) { Chunk = LinkedOffset(16, 16, 16); }
-
-            public int ChunkIdx() { return (Chunk.ZoneZ * 32) + Chunk.ZoneX; }
-            public int ChunkZXIdx() { return (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
-            public int ChunkBlockPos() { return (Chunk.OffsetY * 16 * 16) + (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
-
-
-        }
-
-        public static class MinecraftOrdinates
-        {
-            public static VoxelZone Region() { return new VoxelZone(0, 0, 0, int.MaxValue, 512, 512); }
-            public static VoxelZone Region(int y, int x, int z) { return new VoxelZone(y, x, z, int.MaxValue, 512, 512); }
-            public static VoxelZone Region(Voxel Voxel) { return new VoxelZone(Voxel, int.MaxValue, 512, 512); }
-
-            public static VoxelZone Chunk() { return new VoxelZone(0, 0, 0, 16, 16, 16); }
-            public static VoxelZone Chunk(int y, int x, int z) { return new VoxelZone(y, x, z, 16, 16, 16); }
-            public static VoxelZone Chunk(VoxelZone Region) { return new VoxelZone(Region.Offset, 16, 16, 16); }
-            public static VoxelZone Chunk(Voxel Voxel) { return new VoxelZone(Voxel, 16, 16, 16); }
-
-            public static int ChunkIdx(VoxelZone Chunk) { return (Chunk.ZoneZ * 32) + Chunk.ZoneX; }
-            public static int ChunkZXidx(VoxelZone Chunk) { return (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
-            public static int ChunkBlockPos(VoxelZone Chunk) { return (Chunk.OffsetY * 16 * 16) + (Chunk.OffsetZ * 16) + Chunk.OffsetX; }
-
-        }
-
-
-    }
-
-
-namespace WorldData.Ordinates.MapData
-    {
-
-        public class Region : VoxelRegion
-        {
-
-
-            WorldData.NbtChunk nbtChunk;
-            WorldData.NbtChunkSection nbtChunkSection;
-
-            int lastYsect = -1;
-            int lastCX = int.MaxValue;
-            int lastCZ = int.MaxValue;
-
-            public bool ShouldLoadChunk
-            {
-                get
-                {
-                    if (nbtChunk == null)
-                        return true;
-
-                    VoxelZone c = Chunk;
-
-                    if (lastCX != c.ZoneX || lastCZ != c.ZoneZ)
-                    {
-                        return true;
-                    }
-                    else
-                        return false;
-                }
-
-                set
-                {
-                    if (value == true)
-                    {
-                        lastCX = int.MaxValue;
-                        lastCZ = int.MaxValue;
-                    }
-                    else
-                    {
-                        VoxelZone c = Chunk;
-
-                        lastCX = c.ZoneX;
-                        lastCZ = c.ZoneZ;
-                    }
-                }
-            }
-
-            public Region() : base(0, 0, 0) { }
-            public Region(int y, int x, int z) : base(y, x, z) { }
-
-
-            public void WorldAlignment(int y, int x, int z)
-            {
-                UpdateVoxel(y, x, z);
-
-            }
-
-            public void RegionAlignment(int y, int x, int z)
-            {
-
-                UpdateZone(0, x, z);
-
-                OffsetX = 0;
-                OffsetZ = 0;
-                OffsetY = y;
-
-            }
-
-
-
-            private void CheckChunkLoad(RegionMCA mca)
-            {
-                if (ShouldLoadChunk == true)
-                {
-                    nbtChunk = new NbtChunk(mca[ChunkIdx()].chunkNBT);
-                    lastYsect = -1;
-                    ShouldLoadChunk = false;
-                }
-            }
-            private void CheckYSectLoad(RegionMCA mca)
-            {
-                CheckChunkLoad(mca);
-
-                int Ysect = Chunk.ZoneY;
-
-                if (lastYsect != Ysect)
-                {
-                    lastYsect = Ysect;
-
-                    NbtCompound nbtSectionData = nbtChunk.Section(lastYsect);
-                    nbtChunkSection = new NbtChunkSection(nbtSectionData);
-                }
-
-            }
-
-            public NbtChunk NbtChunk(RegionMCA mca)
-            {
-
-                CheckChunkLoad(mca);
-                return nbtChunk;
-            }
-            public NbtChunkSection NbtChunkSection(RegionMCA mca)
-            {
-                CheckYSectLoad(mca);
-                return nbtChunkSection;
-            }
-
-
-        }
-
-    }
