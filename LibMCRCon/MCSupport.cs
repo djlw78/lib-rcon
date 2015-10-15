@@ -2579,7 +2579,7 @@ namespace LibMCRcon.Remote
         private AbstractedFTP FTP;
 
 
-        private Queue<RenderRegion> _procRegionsList = new Queue<RenderRegion>();
+        private List<RenderRegion> _procRegionsList = new List<RenderRegion>();
         private bool _stop = false;
         private bool _stopFTP = false;
 
@@ -2705,16 +2705,16 @@ namespace LibMCRcon.Remote
                                     if (diff.Minutes > 5)
                                     {
                                         if (FTP.Download(ftpFile, localFile))
-                                            _procRegionsList.Enqueue(new RenderRegion(RV, localFile, RegionPath, ImgsPath, ft));
+                                            _procRegionsList.Add(new RenderRegion(RV, localFile, RegionPath, ImgsPath, ft));
 
                                     }
                                     else
-                                        _procRegionsList.Enqueue(new RenderRegion(RV, localHdtFile, RegionPath, ImgsPath, ft));
+                                        _procRegionsList.Add(new RenderRegion(RV, localHdtFile, RegionPath, ImgsPath, ft));
                                 }
                                 else
                                 {
                                     if (FTP.Download(ftpFile, localFile))
-                                        _procRegionsList.Enqueue(new RenderRegion(RV, localFile, RegionPath, ImgsPath, ft));
+                                        _procRegionsList.Add(new RenderRegion(RV, localFile, RegionPath, ImgsPath, ft));
                                 }
 
                             }
@@ -2749,34 +2749,35 @@ namespace LibMCRcon.Remote
 
         private void ProcessMaps()
         {
-            RenderRegion rr;
-
+            List<RenderRegion> _run = new List<RenderRegion>();
+            
             do
             {
 
-                int rrcount = 0;
-                while (_procRegionsList.Count > 0)
+                lock (_procRegionsList)
                 {
-                    rrcount++;
-
-                    if (rrcount > 3 && _procRegionsList.Count > 0)
-                        rrcount = 0;
-
-                    lock (_procRegionsList)
-                    {
-                        rr = _procRegionsList.Dequeue();
-                        rr.Start();
-                    }
-
-                    if (rrcount > 0)
-                        rr.Finish();
-
-                    Thread.Sleep(1);
-
-                    rr = null;
+                    _run.AddRange(_procRegionsList);
+                    _procRegionsList.Clear();
                 }
 
-                Thread.Sleep(100);
+                if (_run.Count > 3)
+                {
+                    _run.ForEach(x => x.Start());
+                    _run.ForEach(x => x.Finish());
+                    _run.Clear();
+                }
+                else if (_run.Count > 1)
+                {
+                    Thread.Sleep(250);
+
+                    _run.ForEach(x => x.Start());
+                    _run.ForEach(x => x.Finish());
+                    _run.Clear();
+
+                }
+
+                Thread.Sleep(1);
+
             } while (_stop == false);
         }
 
