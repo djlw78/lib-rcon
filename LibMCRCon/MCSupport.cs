@@ -2628,30 +2628,30 @@ namespace LibMCRcon.Remote
         }
 
 
-        public static LibMCRcon.WorldData.Region[] RegionsVoxelCentered<F>(AsyncRegionProcessing<F> ARP, Voxel Location) where F:FTP, new()
+        public static WorldData.Region[] RegionsVoxelCentered<F>(AsyncRegionProcessing<F> ARP, Voxel Location) where F:FTP, new()
         {
-            LibMCRcon.WorldData.Region Q1 = new LibMCRcon.WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
-            LibMCRcon.WorldData.Region Q2 = new LibMCRcon.WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
-            LibMCRcon.WorldData.Region Q3 = new LibMCRcon.WorldData.Region(Location.X + 255, Location.Yo, Location.Z + 255);
-            LibMCRcon.WorldData.Region Q4 = new LibMCRcon.WorldData.Region(Location.X - 256, Location.Yo, Location.Z + 255);
+            WorldData.Region Q1 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
+            WorldData.Region Q2 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
+            WorldData.Region Q3 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z + 255);
+            WorldData.Region Q4 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z + 255);
 
             ARP.Enqueue(Q1);
             ARP.Enqueue(Q2);
             ARP.Enqueue(Q3);
             ARP.Enqueue(Q4);
 
-            return new LibMCRcon.WorldData.Region[] { Q1, Q2, Q3, Q4 };
+            return new WorldData.Region[] { Q1, Q2, Q3, Q4 };
 
         }
 
         public static LibMCRcon.WorldData.Region[] RegionsVoxelCentered(Voxel Location)
         {
-            LibMCRcon.WorldData.Region Q1 = new LibMCRcon.WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
-            LibMCRcon.WorldData.Region Q2 = new LibMCRcon.WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
-            LibMCRcon.WorldData.Region Q3 = new LibMCRcon.WorldData.Region(Location.X + 255, Location.Yo, Location.Z + 255);
-            LibMCRcon.WorldData.Region Q4 = new LibMCRcon.WorldData.Region(Location.X - 256, Location.Yo, Location.Z + 255);
+            WorldData.Region Q1 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
+            WorldData.Region Q2 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
+            WorldData.Region Q3 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z + 255);
+            WorldData.Region Q4 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z + 255);
 
-            return new LibMCRcon.WorldData.Region[] { Q1, Q2, Q3, Q4 };
+            return new WorldData.Region[] { Q1, Q2, Q3, Q4 };
 
         }
 
