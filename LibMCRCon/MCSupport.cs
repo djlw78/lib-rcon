@@ -2627,9 +2627,8 @@ namespace LibMCRcon.Remote
 
         }
 
-
-        public static WorldData.Region[] RegionsVoxelCentered<F>(AsyncRegionProcessing<F> ARP, Voxel Location) where F:FTP, new()
-        {
+        public static WorldData.Region[] EnqueueVoxelCenteredRegions<F>(AsyncRegionProcessing<F> ARP, Voxel Location) where F:FTP, new()
+        { 
             WorldData.Region Q1 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
             WorldData.Region Q2 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
             WorldData.Region Q3 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z + 255);
@@ -2659,11 +2658,7 @@ namespace LibMCRcon.Remote
         private void ProcessFTP()
         {
 
-
             List<FileInfo> filesTransfered = new List<FileInfo>();
-
-
-
             do
             {
                 try
@@ -2673,12 +2668,12 @@ namespace LibMCRcon.Remote
 
                         FTP.Open();
 
-
                         while (Count > 0)
                         {
-
-                            RV = Dequeue();
-
+                            lock(this)
+                            {
+                                RV = Dequeue();
+                            }
 
 
                             DateTime lastCheckTS = DateTime.MinValue;
