@@ -2088,7 +2088,7 @@ namespace LibMCRcon.Rendering
         }
 
 
-        public static void Stitched(String ImagesPath, LibMCRcon.WorldData.Region RV, LibMCRcon.WorldData.Region Q1, LibMCRcon.WorldData.Region Q2, LibMCRcon.WorldData.Region Q3, LibMCRcon.WorldData.Region Q4)
+        public static void Stitched(String ImagesPath, WorldData.Region RV, WorldData.Region Q1, WorldData.Region Q2, WorldData.Region Q3, WorldData.Region Q4)
         {
 
             DirectoryInfo imgDir = new DirectoryInfo(ImagesPath);
@@ -2148,7 +2148,7 @@ namespace LibMCRcon.Rendering
 
 
         }
-        public static void RenderBlockPngFromRegion(byte[][] TopoData, Color[] BlockData, string ImgPath, LibMCRcon.WorldData.Region RV)
+        public static void RenderBlockPngFromRegion(byte[][] TopoData, Color[] BlockData, string ImgPath, WorldData.Region RV)
         {
             byte[] hMap = TopoData[0];
             byte[] wMap = TopoData[1];
@@ -2183,7 +2183,7 @@ namespace LibMCRcon.Rendering
             bit.Dispose();
 
         }
-        public static void RenderTopoPngFromRegion(byte[][] HeightData, string ImgPath, LibMCRcon.WorldData.Region RV)
+        public static void RenderTopoPngFromRegion(byte[][] HeightData, string ImgPath, WorldData.Region RV)
         {
             byte[] hMap = HeightData[0];
             byte[] hWMap = HeightData[1];
@@ -2265,7 +2265,7 @@ namespace LibMCRcon.Rendering
             }
         }
 
-        public static void RenderDataFromRegion(RegionMCA mca, LibMCRcon.WorldData.Region rVox, byte[][] TopoData, Color[] Blocks = null)
+        public static void RenderDataFromRegion(RegionMCA mca, WorldData.Region rVox, byte[][] TopoData, Color[] Blocks = null)
         {
 
             byte[] hMap = TopoData[0];
@@ -2510,7 +2510,7 @@ namespace LibMCRcon.Rendering
             }
 
         }
-        public static byte[][] RenderTopoDataFromRegion(RegionMCA mca, LibMCRcon.WorldData.Region mcr)
+        public static byte[][] RenderTopoDataFromRegion(RegionMCA mca, WorldData.Region mcr)
         {
 
             byte[][] topo = new byte[][] { new byte[512 * 512], new byte[512 * 512] };
@@ -2570,7 +2570,7 @@ namespace LibMCRcon.Remote
         public string UserName { get; set; }
         public string Password { get; set; }
     }
-    public class AsyncRegionProcessing<AbstractedFTP> : Queue<LibMCRcon.WorldData.Region> where AbstractedFTP : FTP, new()
+    public class AsyncRegionProcessing<AbstractedFTP> : Queue<WorldData.Region> where AbstractedFTP : FTP, new()
     {
 
 
@@ -2589,7 +2589,7 @@ namespace LibMCRcon.Remote
         public int ProcessThreashold { get; set; }
 
 
-        private LibMCRcon.WorldData.Region RV;
+        private WorldData.Region RV;
 
         public AsyncRegionProcessing()
             : base()
@@ -2644,7 +2644,7 @@ namespace LibMCRcon.Remote
 
         }
 
-        public static LibMCRcon.WorldData.Region[] RegionsVoxelCentered(Voxel Location)
+        public static WorldData.Region[] RegionsVoxelCentered(Voxel Location)
         {
             WorldData.Region Q1 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
             WorldData.Region Q2 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
@@ -2836,7 +2836,7 @@ namespace LibMCRcon.Remote
 
             Thread bgThread;
 
-            public LibMCRcon.WorldData.Region RV { get; set; }
+            public WorldData.Region RV { get; set; }
             public FileInfo ProcessFile { get; set; }
             public DirectoryInfo RegionsDir { get; set; }
             public DirectoryInfo ImgsDir { get; set; }
@@ -2844,7 +2844,7 @@ namespace LibMCRcon.Remote
             public Boolean Done { get; private set; }
 
             public RenderRegion() { bgThread = new Thread(Process); bgThread.IsBackground = true; }
-            public RenderRegion(LibMCRcon.WorldData.Region RV, string ProcessFile, string RegionDirectory, string ImgsDirectory, DateTime FtpFileTime)
+            public RenderRegion(WorldData.Region RV, string ProcessFile, string RegionDirectory, string ImgsDirectory, DateTime FtpFileTime)
                 : this()
             {
                 this.ProcessFile = new FileInfo(ProcessFile);
