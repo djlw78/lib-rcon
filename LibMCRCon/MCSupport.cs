@@ -300,8 +300,10 @@ namespace LibMCRcon.RCon
 
                 }
 
+            bgCommThread = null;
+
             Connecting = true;
-            TimeCheck tc = new TimeCheck(3000);
+            TimeCheck tc = new TimeCheck();
 
             for (int x = 0; x < 10; x++)
             {
@@ -316,6 +318,7 @@ namespace LibMCRcon.RCon
 
                 bgCommThread.Start();
 
+                tc.Reset(3000);
                 while (tc.Expired == false)
                 {
                     if (StateTCP == TCPState.CONNECTED)
@@ -827,25 +830,29 @@ namespace LibMCRcon.RCon
                 result = r.ExecuteCmd(string.Format("execute {0} ~ ~ ~ testforblock ~ ~-1 ~ minecraft:lava", player));
                 if (result.Length > 0)
                 {
-                    string data = result.Substring(12, result.IndexOf("is") - 12);
-                    string[] tpdata = data.Split(new char[] { ',' });
-
-                    float tf = 0;
-
-                    if (float.TryParse(tpdata[0], out tf))
+                    int ix = result.IndexOf("is");
+                    if (ix != -1)
                     {
-                        pV.X = (int)tf;
-                        tf = 0;
-                        if (float.TryParse(tpdata[1], out tf))
-                        {
-                            pV.Y = (int)tf;
-                            tf = 0;
-                            if (float.TryParse(tpdata[2], out tf))
-                            {
-                                pV.Z = (int)tf;
-                                return pV;
-                            }
+                        string data = result.Substring(12, result.IndexOf("is") - 12);
+                        string[] tpdata = data.Split(new char[] { ',' });
 
+                        float tf = 0;
+
+                        if (float.TryParse(tpdata[0], out tf))
+                        {
+                            pV.X = (int)tf;
+                            tf = 0;
+                            if (float.TryParse(tpdata[1], out tf))
+                            {
+                                pV.Y = (int)tf;
+                                tf = 0;
+                                if (float.TryParse(tpdata[2], out tf))
+                                {
+                                    pV.Z = (int)tf;
+                                    return pV;
+                                }
+
+                            }
                         }
                     }
                 }
@@ -1804,6 +1811,16 @@ namespace LibMCRcon.Rendering
             return Color.FromArgb(R1, G1, B1);
         }
     }
+    public static class ColorStepExtension
+    {
+
+        public static ColorStep ColorStep(this Color Color, int Steps)
+        {
+            return new ColorStep(Color, Steps);
+        }
+
+    }
+
     public class MCRegionMaps
     {
 
@@ -2087,67 +2104,147 @@ namespace LibMCRcon.Rendering
             return new Color[][] { Topo, Water };
         }
 
-
-        public static void Stitched(String ImagesPath, WorldData.Region RV, WorldData.Region Q1, WorldData.Region Q2, WorldData.Region Q3, WorldData.Region Q4)
+        public static void Stitched(string ImagesPath, Voxel V,string ImgType = "topo")
         {
 
             DirectoryInfo imgDir = new DirectoryInfo(ImagesPath);
-            string SaveBitMap;
 
-            FileInfo fQ1 = new FileInfo(Path.Combine(ImagesPath, string.Format("topo.{0}.{1}.png", Q1.Xs, Q1.Zs)));
-            FileInfo fQ2 = new FileInfo(Path.Combine(ImagesPath, string.Format("topo.{0}.{1}.png", Q2.Xs, Q2.Zs)));
-            FileInfo fQ3 = new FileInfo(Path.Combine(ImagesPath, string.Format("topo.{0}.{1}.png", Q3.Xs, Q3.Zs)));
-            FileInfo fQ4 = new FileInfo(Path.Combine(ImagesPath, string.Format("topo.{0}.{1}.png", Q4.Xs, Q4.Zs)));
+            string SaveBitMap = string.Format(Path.Combine(imgDir.FullName, string.Format("{2}Cent.{0}.{1}.png", V.Xs, V.Zs, ImgType)));
+           
+            Voxel R = MinecraftOrdinates.Region(V);
+            
+            R.X -= 256;
+            R.Z -= 256;
 
-            Image bQ1 = null;
+            int sx = R.Xo;
+            int sy = R.Zo;
 
-            Bitmap b1 = new Bitmap(1024, 1024);
+            Rectangle fR = new Rectangle();
+            FileInfo fQ;
+
+            Bitmap b1;
+            Graphics g;
+            Image bQ = null;
+
             Bitmap b2 = new Bitmap(512, 512);
 
-            Graphics g = Graphics.FromImage(b1);
-            SaveBitMap = string.Format(Path.Combine(imgDir.FullName, string.Format("topoCent.{0}.{1}.png", RV.Xs, RV.Zs)));
-
-
-            if (fQ1.Exists)
+            if (sx == 0 && sy == 0)
             {
-                bQ1 = Image.FromFile(fQ1.FullName);
-                g.DrawImage(bQ1, 0, 0, 512, 512);
-                bQ1.Dispose();
+                b1 = new Bitmap(512, 512);
+                g = Graphics.FromImage(b1);
+
+                fQ = new FileInfo(Path.Combine(ImagesPath, string.Format("{2}.{0}.{1}.png", R.Xs, R.Zs, ImgType)));
+                if (fQ.Exists)
+                {
+                    bQ = Image.FromFile(fQ.FullName);
+                    g.DrawImage(bQ, 0, 0);
+                    bQ.Dispose();
+                }
+            }
+            else if (sx > 0 && sy == 0)
+            {
+                b1 = new Bitmap(1024, 512);
+                g = Graphics.FromImage(b1);
+
+                fQ = new FileInfo(Path.Combine(ImagesPath, string.Format("{2}.{0}.{1}.png", R.Xs, R.Zs, ImgType)));
+                if (fQ.Exists)
+                {
+                    bQ = Image.FromFile(fQ.FullName);
+                    g.DrawImage(bQ, 0, 0);
+                    bQ.Dispose();
+                }
+
+                fQ = new FileInfo(Path.Combine(ImagesPath, string.Format("{2}.{0}.{1}.png", R.Xs + 1, R.Zs, ImgType)));
+                if (fQ.Exists)
+                {
+                    bQ = Image.FromFile(fQ.FullName);
+                    g.DrawImage(bQ, 512, 0);
+                    bQ.Dispose();
+                }
+            }
+            else if (sx == 0 && sy > 0)
+            {
+                b1 = new Bitmap(512, 1024);
+                g = Graphics.FromImage(b1);
+
+
+                fQ = new FileInfo(Path.Combine(ImagesPath, string.Format("{2}.{0}.{1}.png", R.Xs, R.Zs, ImgType)));
+                if (fQ.Exists)
+                {
+                    bQ = Image.FromFile(fQ.FullName);
+                    g.DrawImage(bQ, 0, 0);
+                    bQ.Dispose();
+                }
+
+                fQ = new FileInfo(Path.Combine(ImagesPath, string.Format("{2}.{0}.{1}.png", R.Xs, R.Zs + 1, ImgType)));
+                if (fQ.Exists)
+                {
+                    bQ = Image.FromFile(fQ.FullName);
+                    g.DrawImage(bQ, 0, 512);
+                    bQ.Dispose();
+                }
+            }
+            else
+            {
+                b1 = new Bitmap(1024, 1024);
+                g = Graphics.FromImage(b1);
+
+                fQ = new FileInfo(Path.Combine(ImagesPath, string.Format("{2}.{0}.{1}.png", R.Xs, R.Zs, ImgType)));
+                if (fQ.Exists)
+                {
+                    bQ = Image.FromFile(fQ.FullName);
+                    g.DrawImage(bQ, 0, 0);
+                    bQ.Dispose();
+                }
+
+                fQ = new FileInfo(Path.Combine(ImagesPath, string.Format("{2}.{0}.{1}.png", R.Xs + 1, R.Zs, ImgType)));
+                if (fQ.Exists)
+                {
+                    bQ = Image.FromFile(fQ.FullName);
+                    g.DrawImage(bQ, 512, 0);
+                    bQ.Dispose();
+                }
+
+                fQ = new FileInfo(Path.Combine(ImagesPath, string.Format("{2}.{0}.{1}.png", R.Xs, R.Zs + 1, ImgType)));
+                if (fQ.Exists)
+                {
+                    bQ = Image.FromFile(fQ.FullName);
+                    g.DrawImage(bQ, 0, 512);
+                    bQ.Dispose();
+                }
+
+                fQ = new FileInfo(Path.Combine(ImagesPath, string.Format("{2}.{0}.{1}.png", R.Xs + 1, R.Zs + 1, ImgType)));
+                if (fQ.Exists)
+                {
+                    bQ = Image.FromFile(fQ.FullName);
+                    g.DrawImage(bQ, 512, 512);
+                    bQ.Dispose();
+                }
             }
 
-            if (fQ2.Exists)
-            {
-                bQ1 = Image.FromFile(fQ2.FullName);
-                g.DrawImage(bQ1, 512, 0, 512, 512);
-                bQ1.Dispose();
-            }
 
-            if (fQ3.Exists)
-            {
-                bQ1 = Image.FromFile(fQ3.FullName);
-                g.DrawImage(bQ1, 512, 512, 512, 512);
-                bQ1.Dispose();
-            }
 
-            if (fQ4.Exists)
-            {
-                bQ1 = Image.FromFile(fQ4.FullName);
-                g.DrawImage(bQ1, 0, 512, 512, 512);
-                bQ1.Dispose();
-            }
 
             g.Dispose();
             g = Graphics.FromImage(b2);
 
-            g.DrawImage(b1, new Rectangle(0, 0, 512, 512), new Rectangle(Q1.Xo, Q1.Zo, 512, 512), GraphicsUnit.Pixel);
+            fR.X = 0;
+            fR.Y = 0;
+            fR.Width = 512;
+            fR.Height = 512;
+
+            g.DrawImage(b1, fR, sx, sy, 512 ,512, GraphicsUnit.Pixel);
+            
+            b1.Dispose();
             g.Dispose();
+
 
             b2.Save(SaveBitMap, System.Drawing.Imaging.ImageFormat.Png);
             b2.Dispose();
-            b1.Dispose();
-
-
         }
+
+      
+       
         public static void RenderBlockPngFromRegion(byte[][] TopoData, Color[] BlockData, string ImgPath, WorldData.Region RV)
         {
             byte[] hMap = TopoData[0];
@@ -2336,7 +2433,7 @@ namespace LibMCRcon.Rendering
                                                     switch (block)
                                                     {
                                                         case 159:
-                                                            blockdata = s.BlockData(rVox.ChunkBlockPos());
+                                                            blockdata = s.BlockData(Chunk.ChunkBlockPos());
                                                             if (blockdata > 15 || blockdata < 0)
                                                                 Blocks[(Chunk.Z * 512) + Chunk.X] = BlockColors[block][0];
                                                             else
@@ -2345,7 +2442,7 @@ namespace LibMCRcon.Rendering
                                                             break;
 
                                                         default:
-                                                            Blocks[(Chunk.Z * 512) + rVox.Chunk.X] = BlockColors[block][0];
+                                                            Blocks[(Chunk.Z * 512) + Chunk.X] = BlockColors[block][0];
                                                             break;
                                                     }
                                                 }
@@ -2537,21 +2634,14 @@ namespace LibMCRcon.Rendering
         }
 
     }
-    public static class ColorStepExtension
-    {
-
-        public static ColorStep ColorStep(this Color Color, int Steps)
-        {
-            return new ColorStep(Color, Steps);
-        }
-
-    }
+    
 
 
 }
-
+ 
 namespace LibMCRcon.Remote
 {
+   
     public abstract class FTP
     {
 
@@ -2559,6 +2649,7 @@ namespace LibMCRcon.Remote
         public abstract void Close();
         public abstract bool FindFile(string RemoteFullName);
         public abstract bool Download(string RemoteFullName, string DownloadFullPath);
+        public abstract bool IsOpen { get; set; }
 
         public DateTime LastWriteDT { get; set; }
         public bool LastDownloadSuccess { get; set; }
@@ -2569,44 +2660,41 @@ namespace LibMCRcon.Remote
         public int FtpPort { get; set; }
         public string UserName { get; set; }
         public string Password { get; set; }
+
+        public abstract List<FileInfo> FindRemoteFiles(string remotepath, string mask);
     }
-    public class AsyncRegionProcessing<AbstractedFTP> : Queue<WorldData.Region> where AbstractedFTP : FTP, new()
+
+    public class RegionProcessing<AbstractedFTP> : Queue<WorldData.Region> where AbstractedFTP : FTP, new()
     {
-
-
-        private Thread bgThreadRegionMaps;
-        private Thread bgThreadFtp;
+        private object thisLock = new object();
         private AbstractedFTP FTP;
 
-
         private List<RenderRegion> _procRegionsList = new List<RenderRegion>();
-        private bool _stop = false;
-        private bool _stopFTP = false;
+
 
         public string RegionPath { get; set; }
         public string ImgsPath { get; set; }
 
         public int ProcessThreashold { get; set; }
+        public int FileAge { get; set; }
+
+        public bool FTPActive { get; private set; }
+        public bool MappingActive { get; private set; }
+        
+        public bool LocalOnly { get; set; }
 
 
         private WorldData.Region RV;
 
-        public AsyncRegionProcessing()
+        public RegionProcessing()
             : base()
         {
-
-            bgThreadRegionMaps = new Thread(ProcessMaps);
-            bgThreadRegionMaps.IsBackground = true;
-
-            bgThreadFtp = new Thread(ProcessFTP);
-            bgThreadFtp.IsBackground = true;
-
-            ProcessThreashold = 3;
-
+            FileAge = 300;
             FTP = new AbstractedFTP();
+            LocalOnly = false;
         }
 
-        public AsyncRegionProcessing(string RegionPath, string ImgsPath)
+        public RegionProcessing(string RegionPath, string ImgsPath)
             : this()
         {
 
@@ -2614,7 +2702,8 @@ namespace LibMCRcon.Remote
             this.ImgsPath = ImgsPath;
 
         }
-        public AsyncRegionProcessing(string RegionPath, string ImgsPath, string RemoteRegionPath, string FtpAddress, int FtpPort, string UserName, string Password)
+
+        public RegionProcessing(string RegionPath, string ImgsPath, string RemoteRegionPath, string FtpAddress, int FtpPort, string UserName, string Password)
             : this(RegionPath, ImgsPath)
         {
 
@@ -2627,209 +2716,271 @@ namespace LibMCRcon.Remote
 
         }
 
-        public static WorldData.Region[] EnqueueVoxelCenteredRegions<F>(AsyncRegionProcessing<F> ARP, Voxel Location) where F:FTP, new()
-        { 
-            WorldData.Region Q1 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
-            WorldData.Region Q2 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
-            WorldData.Region Q3 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z + 255);
-            WorldData.Region Q4 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z + 255);
 
-            ARP.Enqueue(Q1);
-            ARP.Enqueue(Q2);
-            ARP.Enqueue(Q3);
-            ARP.Enqueue(Q4);
-
-            return new WorldData.Region[] { Q1, Q2, Q3, Q4 };
-
-        }
-
-        public static WorldData.Region[] RegionsVoxelCentered(Voxel Location)
+        public void Enqueue(WorldData.Region[] Q)
         {
-            WorldData.Region Q1 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z - 256);
-            WorldData.Region Q2 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z - 256);
-            WorldData.Region Q3 = new WorldData.Region(Location.X + 255, Location.Yo, Location.Z + 255);
-            WorldData.Region Q4 = new WorldData.Region(Location.X - 256, Location.Yo, Location.Z + 255);
 
-            return new WorldData.Region[] { Q1, Q2, Q3, Q4 };
+            lock (thisLock)
+            {
+                foreach (WorldData.Region r in Q)
+                    base.Enqueue(r);
+            }
 
         }
-
 
         private void ProcessFTP()
         {
 
             List<FileInfo> filesTransfered = new List<FileInfo>();
-            do
+            bool DoFTP = true;
+
+            try
             {
-                try
+
+                if (Count > 0)
                 {
-                    if (Count > 0)
+
+                    while (Count > 0)
                     {
 
-                        FTP.Open();
+                        RV = Dequeue();
 
-                        while (Count > 0)
+                        DateTime lastCheckTS = DateTime.MinValue;
+                        DateTime latestFileTS = lastCheckTS;
+
+                        string regionFileName = string.Format(@"r.{0}.{1}.mca", RV.Xs, RV.Zs);
+                        string regionHeightDataFileName = string.Format(@"r.{0}.{1}.hdt", RV.Xs, RV.Zs);
+                        string regionImgFileName = string.Format(@"topo.{0}.{1}.png", RV.Xs, RV.Zs);
+
+                        string ftpFileName = string.Format(@"{0}/{1}", FTP.RemoteRegionPath, regionFileName);
+                        string localFileName = Path.Combine(RegionPath, regionFileName);
+                        string localHdtFileName = Path.Combine(RegionPath, regionHeightDataFileName);
+                        string localImgFileName = Path.Combine(ImgsPath, regionImgFileName);
+
+
+                        FileInfo lcHdtFile = new FileInfo(localHdtFileName);
+                        FileInfo lcImgFile = new FileInfo(localImgFileName);
+                        FileInfo lcMcaFile = new FileInfo(localFileName);
+
+                        DateTime ft = DateTime.MinValue;
+
+
+                        if (LocalOnly == true)
                         {
-                            lock(this)
+                            DoFTP = false;
+
+                            if (lcImgFile.Exists == false)
                             {
-                                RV = Dequeue();
+                                if (lcMcaFile.Exists)
+                                {
+                                    _procRegionsList.Add(new RenderRegion(RV, localFileName, RegionPath, ImgsPath, lcMcaFile.LastWriteTime));
+                                }
+                                else if (lcHdtFile.Exists)
+                                {
+                                    _procRegionsList.Add(new RenderRegion(RV, localHdtFileName, RegionPath, ImgsPath, lcHdtFile.LastWriteTime));
+                                }
+
                             }
 
 
-                            DateTime lastCheckTS = DateTime.MinValue;
-                            DateTime latestFileTS = lastCheckTS;
+                        }
+                        else
+                            DoFTP = true;
 
-                            string regionFile = string.Format(@"r.{0}.{1}.mca", RV.Xs, RV.Zs);
-                            string regionHeightDataFile = string.Format(@"r.{0}.{1}.hdt", RV.Xs, RV.Zs);
+                        if(DoFTP == true)
+                        {
+                            if (FTP.IsOpen == false)
+                            {
+                                FTP.Open();
+                                FTPActive = true;
+                            }
 
-                            string ftpFile = string.Format(@"{0}/{1}", FTP.RemoteRegionPath, regionFile);
-                            string localFile = Path.Combine(RegionPath, regionFile);
-                            string localHdtFile = Path.Combine(RegionPath, regionHeightDataFile);
-
-
-                            FileInfo lcFile = new FileInfo(localHdtFile);
-                            DateTime ft = DateTime.MinValue;
-
-                            if (FTP.FindFile(ftpFile))
+                            if (FTP.FindFile(ftpFileName))
                             {
 
                                 ft = FTP.LastWriteDT;
-                                if (lcFile.Exists)
+                                if (lcHdtFile.Exists)
                                 {
-                                    TimeSpan diff = ft - lcFile.LastWriteTime;
-                                    if (diff.Minutes > 5)
+                                    TimeSpan diff = ft - lcHdtFile.LastWriteTime;
+                                    if (diff.TotalSeconds > FileAge)
                                     {
-                                        if (FTP.Download(ftpFile, localFile))
-                                            _procRegionsList.Add(new RenderRegion(RV, localFile, RegionPath, ImgsPath, ft));
+                                        if (FTP.Download(ftpFileName, localFileName))
+                                            _procRegionsList.Add(new RenderRegion(RV, localFileName, RegionPath, ImgsPath, ft));
 
                                     }
                                     else
-                                        _procRegionsList.Add(new RenderRegion(RV, localHdtFile, RegionPath, ImgsPath, ft));
+                                    {
+                                        if (lcImgFile.Exists == false)
+                                            _procRegionsList.Add(new RenderRegion(RV, localHdtFileName, RegionPath, ImgsPath, ft));
+                                        else
+                                        {
+
+                                            diff = DateTime.Now - lcImgFile.LastWriteTime;
+
+                                            if (diff.TotalSeconds > FileAge)
+                                            {
+                                                _procRegionsList.Add(new RenderRegion(RV, localHdtFileName, RegionPath, ImgsPath, ft));
+                                            }
+                                        }
+                                    }
                                 }
                                 else
                                 {
-                                    if (FTP.Download(ftpFile, localFile))
-                                        _procRegionsList.Add(new RenderRegion(RV, localFile, RegionPath, ImgsPath, ft));
+                                    if (FTP.Download(ftpFileName, localFileName))
+                                        _procRegionsList.Add(new RenderRegion(RV, localFileName, RegionPath, ImgsPath, ft));
                                 }
 
                             }
                         }
 
-                        FTP.Close();
-
                     }
 
-                    Thread.Sleep(2000);
 
-                    while (Count == 0)
-                    {
-                        if (_stopFTP == true)
-                            return;
-                        Thread.Sleep(100);
-                    }
+
+
 
                 }
 
-                catch (Exception)
-                {
-                    Enqueue(RV);
-                    break;
-                }
             }
-            while (_stopFTP == false);
 
+            catch (Exception)
+            {
+                Enqueue(RV);
+            }
 
-
+            if(FTP.IsOpen)
+            {
+                FTP.Close();
+                FTPActive = false;
+            }
         }
 
         private void ProcessMaps()
         {
-            List<RenderRegion> _run = new List<RenderRegion>();
-            
-            do
-            {
 
-                lock (_procRegionsList)
-                {
-                    _run.AddRange(_procRegionsList);
-                    _procRegionsList.Clear();
-                }
+            MappingActive = true;
 
-                if (_run.Count > 3)
-                {
-                    _run.ForEach(x => x.Start());
-                    _run.ForEach(x => x.Finish());
-                    _run.Clear();
-                }
-                else if (_run.Count > 1)
-                {
-                    Thread.Sleep(250);
+            _procRegionsList.ForEach(x => x.Start());
 
-                    _run.ForEach(x => x.Start());
-                    _run.ForEach(x => x.Finish());
-                    _run.Clear();
-
-                }
-
-                Thread.Sleep(1);
-
-            } while (_stop == false);
+            MappingActive = false;
         }
 
         public void Start()
         {
 
-            _stop = false;
-            _stopFTP = false;
+            _procRegionsList.Clear();
 
-            if (bgThreadRegionMaps.IsAlive == false)
-                bgThreadRegionMaps.Start();
-
-            if (bgThreadFtp.IsAlive == false)
-                bgThreadFtp.Start();
+            ProcessFTP();
+            ProcessMaps();
 
         }
 
-        public void Finish()
+
+        public WorldData.Region[] ProcessEntireServer()
         {
 
-            FinishFtp();
-            FinishMaps();
+            
+
+            List<WorldData.Region> Ql = new List<WorldData.Region>();
+            WorldData.Region[] Q;
+
+            if(FTP.IsOpen == false)
+                FTP.Open();
+
+            List<FileInfo> RF = FTP.FindRemoteFiles(FTP.RemoteRegionPath, ".mca");
+
+            foreach(FileInfo f in RF)
+            {
+                WorldData.Region Qr = new WorldData.Region();
+                
+                Qr.Xo = 256;
+                Qr.Zo = 256;
+                
+
+                string[] s = f.Name.Split('.');
+
+                Qr.Xs = int.Parse(s[1]);
+                Qr.Zs = int.Parse(s[2]);
+
+                Ql.Add(Qr);
+
+            }
+
+            Q = Ql.ToArray();
+
+            Enqueue(Q);
+            Start();
+            
+            return Q;
         }
 
-        public void FinishMaps()
+
+        public WorldData.Region[] StartVoxelCentered(Voxel V)
         {
 
-            _stop = true;
+            Voxel R = MinecraftOrdinates.Region(V);
+            
+            WorldData.Region[] Q;
 
-            if (bgThreadRegionMaps.IsAlive == true)
-                bgThreadRegionMaps.Join();
+            R.X -= 256;
+            R.Z -= 256;
 
-            bgThreadRegionMaps = new Thread(ProcessMaps);
-            bgThreadRegionMaps.IsBackground = true;
+            int sx = R.Xo;
+            int sy = R.Zo;
 
-        }
+            R.Xo = 256;
+            R.Zo = 256;
 
-        public void FinishFtp()
-        {
-            _stopFTP = true;
-            if (bgThreadFtp.IsAlive == true)
-                bgThreadFtp.Join();
+            Voxel S = MinecraftOrdinates.Region(R);
 
-            bgThreadFtp = new Thread(ProcessFTP);
-            bgThreadFtp.IsBackground = true;
-        }
+            if (sx == 0 && sy == 0)
+            {
+                Q = new WorldData.Region[1];
+                Q[0] = new WorldData.Region(R);
+            }
+            else if (sx > 0 && sy == 0)
+            {
+                Q = new WorldData.Region[2];
+                Q[0] = new WorldData.Region(R);
+                
+                S.SetSegment(R.Xs + 1, R.Zs);
+                Q[1] = new WorldData.Region(S);
 
-        public void Stop()
-        {
-            _stop = true;
-            Finish();
+            }
+            else if (sx == 0 && sy > 0)
+            {
+                Q = new WorldData.Region[2];
+                Q[0] = new WorldData.Region(R);
+
+
+                S.SetSegment(R.Xs, R.Zs + 1);
+                Q[1] = new WorldData.Region(S);
+            }
+            else
+            {
+                Q = new WorldData.Region[4];
+                Q[0] = new WorldData.Region(R);
+
+                S.SetSegment(R.Xs+1, R.Zs);
+                Q[1] = new WorldData.Region(S);
+
+                S.SetSegment(R.Xs, R.Zs + 1);
+                Q[2] = new WorldData.Region(S);
+
+                S.SetSegment(R.Xs+1, R.Zs + 1);
+                Q[3] = new WorldData.Region(S);
+
+            }
+           
+            Enqueue(Q);
+            Start();
+
+            return Q;
+
         }
 
         private class RenderRegion
         {
-
-            Thread bgThread;
 
             public WorldData.Region RV { get; set; }
             public FileInfo ProcessFile { get; set; }
@@ -2838,7 +2989,7 @@ namespace LibMCRcon.Remote
             public DateTime FtpFileTime { get; set; }
             public Boolean Done { get; private set; }
 
-            public RenderRegion() { bgThread = new Thread(Process); bgThread.IsBackground = true; }
+            public RenderRegion() { }
             public RenderRegion(WorldData.Region RV, string ProcessFile, string RegionDirectory, string ImgsDirectory, DateTime FtpFileTime)
                 : this()
             {
@@ -2850,25 +3001,6 @@ namespace LibMCRcon.Remote
             }
 
             public void Start()
-            {
-                if (bgThread.IsAlive == true)
-                    return;
-                else
-                    bgThread.Start();
-            }
-            public void Finish()
-            {
-
-                if (bgThread.IsAlive)
-                    bgThread.Join();
-            }
-            public void Abort()
-            {
-                if (bgThread.IsAlive)
-                    bgThread.Abort();
-            }
-
-            private void Process()
             {
                 Done = false;
 
@@ -2885,7 +3017,7 @@ namespace LibMCRcon.Remote
 
                     LibMCRcon.Rendering.MCRegionMaps.RenderDataFromRegion(mca, RV, MapData, BlockData);
                     LibMCRcon.Rendering.MCRegionMaps.RenderTopoPngFromRegion(MapData, ImgsDir.FullName, RV);
-                    LibMCRcon.Rendering.MCRegionMaps.RenderBlockPngFromRegion(MapData, BlockData, ImgsDir.FullName, RV);
+                    //LibMCRcon.Rendering.MCRegionMaps.RenderBlockPngFromRegion(MapData, BlockData, ImgsDir.FullName, RV);
 
 
                     FileInfo mcaH = new FileInfo(Path.Combine(RegionsDir.FullName, Path.GetFileNameWithoutExtension(ProcessFile.Name) + ".hdt"));
@@ -2899,7 +3031,26 @@ namespace LibMCRcon.Remote
 
 
                     mcaH.LastWriteTime = FtpFileTime;
-                    ProcessFile.Delete();
+
+                    //Togos processing
+
+                    string JarName = Path.Combine(RegionsDir.FullName, "tcmcr.jar");
+
+                    System.Diagnostics.Process proc = new System.Diagnostics.Process();
+                    proc.EnableRaisingEvents = false;
+                    proc.StartInfo.FileName = "java";
+                    proc.StartInfo.Arguments = string.Format("-jar tmcmr.jar -f -o {0} {1}", ImgsDir.FullName, ProcessFile.Name);
+                    proc.StartInfo.WorkingDirectory = RegionsDir.FullName;
+                    
+                    proc.StartInfo.UseShellExecute = false;
+                    proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                    proc.StartInfo.CreateNoWindow = true;
+
+                    
+                    if (proc.Start() == true)
+                        proc.WaitForExit();
+
+
                 }
                 else
                 {
@@ -2921,5 +3072,6 @@ namespace LibMCRcon.Remote
         }
 
     }
- 
+
+   
 }

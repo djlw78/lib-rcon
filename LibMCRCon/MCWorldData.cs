@@ -495,9 +495,6 @@ namespace LibMCRcon.WorldData
 
     }
 
-
-
-
     public class Voxel
     {
 
@@ -660,32 +657,139 @@ namespace LibMCRcon.WorldData
         public int ChunkZXIdx() { return (V[2] * 16) + V[1]; }
         public int ChunkBlockPos() { return (V[0] * 16 * 16) + (V[2] * 16) + V[1]; }
 
+
+
+        public bool Parse(string CsvXYZ)
+        {
+            float tf = 0;
+            Voxel pV = this;
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append(CsvXYZ);
+            sb.Replace(' ', ',');
+
+
+            string[] tpdata = sb.ToString().Split(',');
+
+            if (tpdata.Length > 2)
+            {
+
+                if (float.TryParse(tpdata[0], out tf))
+                {
+                    pV.X = (int)tf;
+                    tf = 0;
+                    if (float.TryParse(tpdata[1], out tf))
+                    {
+                        pV.Y = (int)tf;
+                        tf = 0;
+                        if (float.TryParse(tpdata[2], out tf))
+                        {
+                            pV.Z = (int)tf;
+                            pV.IsValid = true;
+
+                        }
+
+                    }
+                }
+            }
+            else if (tpdata.Length > 1)
+            {
+                if (float.TryParse(tpdata[0], out tf))
+                {
+                    pV.X = (int)tf;
+                    tf = 0;
+                    if (float.TryParse(tpdata[1], out tf))
+                    {
+                        pV.Z = (int)tf;
+                        pV.IsValid = true;
+                    }
+                }
+            }
+
+            return pV.IsValid;
+        }
+        public bool ParseSegment(string CsvSegment)
+        {
+            float tf = 0;
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append(CsvSegment);
+            sb.Replace(' ', ',');
+
+
+            string[] tpdata = sb.ToString().Split(',');
+
+            if (tpdata.Length > 2)
+            {
+
+                if (float.TryParse(tpdata[0], out tf))
+                {
+                    Xs = (int)tf;
+                    tf = 0;
+                    if (float.TryParse(tpdata[1], out tf))
+                    {
+                        Y = (int)tf;
+                        tf = 0;
+                        if (float.TryParse(tpdata[2], out tf))
+                        {
+                            Zs = (int)tf;
+                            IsValid = true;
+
+                        }
+
+                    }
+                }
+            }
+            else if (tpdata.Length > 1)
+            {
+                if (float.TryParse(tpdata[0], out tf))
+                {
+                    Xs = (int)tf;
+                    tf = 0;
+                    if (float.TryParse(tpdata[1], out tf))
+                    {
+                        Zs = (int)tf;
+                        IsValid = true;
+                    }
+                }
+            }
+
+            return IsValid;
+        }
+        public bool ParseSegment(string CsvSegment, params int[] Offset)
+        {
+            if(ParseSegment(CsvSegment) == true)
+            {
+
+             
+                if (Offset.Length > 2)
+                {
+                    SetOffset(Offset[0], Offset[1], Offset[2]);
+                }
+                else if (Offset.Length > 1)
+                {
+                    Xo = Offset[0];
+                    Zo = Offset[1];
+                }
+            }
+
+            return IsValid;
+
+        }
+
+        
     }
-    public static class MinecraftOrdinates
-    {
-        public static Voxel Region() { return new Voxel(0, 0, 0, int.MaxValue, 512); }
-        public static Voxel Region(int y, int x, int z) { return new Voxel(y, x, z, int.MaxValue, 512); }
-        public static Voxel Region(Voxel Voxel) { return new Voxel(Voxel.Y, Voxel.X, Voxel.Z, int.MaxValue, 512); }
-
-        public static Voxel Chunk() { return new Voxel(0, 0, 0, 16, 16); }
-        public static Voxel Chunk(int y, int x, int z) { return new Voxel(y, x, z, 16, 16); }
-        public static Voxel Chunk(Voxel Voxel) { return Voxel.OffsetVoxel(16, 16); }
-
-        public static int ChunkIdx(Voxel Chunk) { return (Chunk.Zs * 32) + Chunk.Xs; }
-        public static int ChunkZXidx(Voxel Chunk) { return (Chunk.Zo * 16) + Chunk.Xo; }
-        public static int ChunkBlockPos(Voxel Chunk) { return (Chunk.Yo * 16 * 16) + (Chunk.Zo * 16) + Chunk.Xo; }
-
-    }
-
     public class Region : Voxel
     {
 
         public Region() : base() { Chunk = OffsetVoxel(16, 16); }
         public Region(int x, int y, int z) : base(y, x, z) { Chunk = OffsetVoxel(16, 16); }
-        public Region(Voxel Voxel) : base(Voxel.SegmentAlignedVoxel()) { Chunk = OffsetVoxel(16, 16); }
+        public Region(Voxel Voxel) : base(Voxel) { Chunk = OffsetVoxel(16, 16); }
 
         public Voxel Chunk { get; private set; }
-
+        
         NbtChunk nbtChunk;
         NbtChunkSection[] nbtChunkSection = new NbtChunkSection[16];
 
@@ -763,4 +867,19 @@ namespace LibMCRcon.WorldData
 
     }
 
+    public static class MinecraftOrdinates
+    {
+        public static Voxel Region() { return new Voxel(0, 0, 0, int.MaxValue, 512); }
+        public static Voxel Region(int y, int x, int z) { return new Voxel(y, x, z, int.MaxValue, 512); }
+        public static Voxel Region(Voxel Voxel) { return new Voxel(Voxel.Y, Voxel.X, Voxel.Z, int.MaxValue, 512); }
+
+        public static Voxel Chunk() { return new Voxel(0, 0, 0, 16, 16); }
+        public static Voxel Chunk(int y, int x, int z) { return new Voxel(y, x, z, 16, 16); }
+        public static Voxel Chunk(Voxel Voxel) { return Voxel.OffsetVoxel(16, 16); }
+
+        public static int ChunkIdx(Voxel Chunk) { return (Chunk.Zs * 32) + Chunk.Xs; }
+        public static int ChunkZXidx(Voxel Chunk) { return (Chunk.Zo * 16) + Chunk.Xo; }
+        public static int ChunkBlockPos(Voxel Chunk) { return (Chunk.Yo * 16 * 16) + (Chunk.Zo * 16) + Chunk.Xo; }
+
+    }
 }
