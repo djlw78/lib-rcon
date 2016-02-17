@@ -361,8 +361,6 @@ namespace LibMCRcon.WorldData
             return blocks;
         }
 
-
-
     }
     public class NbtChunkSection
     {
@@ -778,9 +776,8 @@ namespace LibMCRcon.WorldData
             return IsValid;
 
         }
-
-        
     }
+
     public class Region : Voxel
     {
 
