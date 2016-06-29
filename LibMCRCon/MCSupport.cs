@@ -13,6 +13,7 @@ using System.Data.SqlClient;
 using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 using LibMCRcon.Nbt;
 using LibMCRcon.WorldData;
@@ -2835,14 +2836,38 @@ namespace LibMCRcon.Remote
         {
                return FTPFullRemotePath(remotepath, MCAFileName);
         }
+        public string FTPRemoteHDTName(string remotepath)
+        {
+            return FTPFullRemotePath(remotepath, HDTFileName);
+        }
+        public string FTPRemoteTopoName(string remotepath)
+        {
+            return FTPFullRemotePath(remotepath, TopoFileName);
+        }
+        public string FTPRemoteTileName(string remotepath)
+        {
+            return FTPFullRemotePath(remotepath, TileFileName);
+        }
 
-        public string FTPLocalPath(string localpath, string filename)
+        public string LocalFullPath(string localpath, string filename)
         {
             return Path.Combine(localpath,filename);
         }
-        public string FTPLocalMCAName(string localpath)
+        public string LocalMCAName(string LocalRegionPath)
         {
-            return FTPLocalPath(localpath, MCAFileName);
+            return LocalFullPath(LocalRegionPath, MCAFileName);
+        }
+        public string LocalHDTName(string LocalRegionPath)
+        {
+            return LocalFullPath(LocalRegionPath, HDTFileName);
+        }
+        public string LocalTopoName(string LocalImgsPath)
+        {
+            return LocalFullPath(LocalImgsPath, TopoFileName);
+        }
+        public string LocalTileName(string LocalImgsPath)
+        {
+            return LocalFullPath(LocalImgsPath, TileFileName);
         }
 
         public string TopoThumbFilename(int Size)
@@ -2984,48 +3009,48 @@ namespace LibMCRcon.Remote
             Done = true;
         }
 
-        public Action FTPDownLoad(FTP ftp,string RegionDirectory, string ImgsDirectory, int Age = 0)
+        public void UpLoadImgs(FTP ftp,string ImgsDirectory)
         {
-            return delegate
-            {
-                ftp.Download(FTPRemoteMCAName(ftp.RemoteRootPath), FTPLocalMCAName(RegionDirectory), Age);
-            };
-        }
-        public Action FTPUpLoadImgs(FTP ftp,string ImgsDirectory)
-        {
-            return delegate
-            {
+
                 if (TopoFileInfo(ImgsDirectory).Exists == true)
-                    ftp.Upload(FTPFullRemotePath(ftp.RemoteRootPath, TopoFileName), FTPLocalPath(ImgsDirectory, TopoFileName));
+                    ftp.Upload(FTPFullRemotePath(ftp.RemoteRootPath, TopoFileName), LocalFullPath(ImgsDirectory, TopoFileName));
 
                 if (TileFileInfo(ImgsDirectory).Exists == true)
-                    ftp.Upload(FTPFullRemotePath(ftp.RemoteRootPath, TileFileName), FTPLocalPath(ImgsDirectory, TileFileName));
-            };
+                    ftp.Upload(FTPFullRemotePath(ftp.RemoteRootPath, TileFileName), LocalFullPath(ImgsDirectory, TileFileName));
         }
-        public Action Start(bool FullRender, string RegionDirectory, string ImgsDirectory, System.Diagnostics.Process TogosJavaProc)
+        public void BlobUploadImgs(BlobContainer Imgs,  string ImgsDirectory)
         {
 
-            return delegate
+                using(FileStream fs = TopoFileInfo(ImgsDirectory).OpenRead())
+                    Imgs.Upload(TopoFileName, fs);
+
+                using (FileStream fs = TileFileInfo(ImgsDirectory).OpenRead())
+                    Imgs.Upload(TopoFileName, fs);
+
+        }
+       
+        public Action Start(bool FullRender, string RegionDirectory, string ImgsDirectory, System.Diagnostics.Process TogosJavaProc)
+        {
+            return delegate()
             {
                 Process(FullRender, RegionDirectory, ImgsDirectory, TogosJavaProc);
             };
         }
-        public Action FullProcess(FTP ftp, bool FullRender, int Age, string RegionDirectory, string ImgsDirectory, System.Diagnostics.Process JavaProc)
-        {
-            return delegate
-            {
 
-                ftp.Download(FTPRemoteMCAName(ftp.RemoteRootPath), FTPLocalMCAName(RegionDirectory), Age);
+        public void FullProcess(FTP ftp, bool FullRender, int Age, string RegionDirectory, string ImgsDirectory, System.Diagnostics.Process JavaProc)
+        {
+
+
+                ftp.Download(FTPRemoteMCAName(ftp.RemoteRootPath), LocalMCAName(RegionDirectory), Age);
 
                 Process(FullRender, RegionDirectory, ImgsDirectory, JavaProc);
 
                 if (TopoFileInfo(ImgsDirectory).Exists == true)
-                    ftp.Upload(FTPFullRemotePath(ftp.RemoteRootPath, TopoFileName), FTPLocalPath(ImgsDirectory, TopoFileName));
+                    ftp.Upload(FTPFullRemotePath(ftp.RemoteRootPath, TopoFileName), LocalFullPath(ImgsDirectory, TopoFileName));
 
                 if (TileFileInfo(ImgsDirectory).Exists == true)
-                    ftp.Upload(FTPFullRemotePath(ftp.RemoteRootPath, TileFileName), FTPLocalPath(ImgsDirectory, TileFileName));
+                    ftp.Upload(FTPFullRemotePath(ftp.RemoteRootPath, TileFileName), LocalFullPath(ImgsDirectory, TileFileName));
 
-            };
         }
 
         public void MakeThumb(int size, string ImgsDirectory)
@@ -3050,9 +3075,9 @@ namespace LibMCRcon.Remote
                 return DateTime.MinValue;
         }
 
-        public bool Download(FTP ftp, string localpath)
+        public bool DownloadMCA(FTP ftp, string localpath)
         {
-           if (ftp.Download(FTPRemoteMCAName(ftp.RemoteRootPath), FTPLocalMCAName(localpath)) == true)
+           if (ftp.Download(FTPRemoteMCAName(ftp.RemoteRootPath), LocalMCAName(localpath)) == true)
            {
                FTPTransfered = true;
                ShouldDownload = false;
@@ -3061,9 +3086,9 @@ namespace LibMCRcon.Remote
 
            return false;
         }
-        public bool Download(FTP ftp, string localpath, int AgeInSeconds)
+        public bool DownloadMCA(FTP ftp, string localpath, int AgeInSeconds)
         {
-            if (ftp.Download(FTPRemoteMCAName(ftp.RemoteRootPath), FTPLocalMCAName(localpath),AgeInSeconds) == true)
+            if (ftp.Download(FTPRemoteMCAName(ftp.RemoteRootPath), LocalMCAName(localpath),AgeInSeconds) == true)
             {
                 FTPTransfered = true;
                 ShouldDownload = false;
@@ -3072,6 +3097,7 @@ namespace LibMCRcon.Remote
 
             return false;
         }
+        
         public bool Upload(FTP ftp, string LocalPath, string FileName )
         {
             string remote = string.Format(@"{0}/{1}", ftp.RemoteRootPath, FileName);
@@ -3140,7 +3166,7 @@ namespace LibMCRcon.Remote
 
         }
         
-        public System.Diagnostics.Process JavaTopoProc(string RegionPath)
+        public static System.Diagnostics.Process JavaTopoProc(string RegionPath)
         {
 
             string JarName = Path.Combine(RegionPath, "tmcmr.jar");
@@ -3158,6 +3184,231 @@ namespace LibMCRcon.Remote
         }
 
     }
+
+    public class MinecraftRegionFileSync
+    {
+       
+        public MinecraftRegionFileSync()
+        {
+            Busy = false;
+        }
+
+        public string RegionFolder { get; set; }
+        public string ImgsFolder { get; set; }
+        
+        private bool bgDone = false;
+        public bool Busy { get; private set; }
+
+        public void SetupFTP(FTP download, FTP upload,int age,bool FullRender)
+        {
+            SetGetMCAList(download);
+            SetDownloadMCA(download, age);
+            SetUploadImgs(upload);
+            SetRenderImgs(FullRender);
+
+        }
+        public void SetupFTP(FTP download, BlobContainer upload, int age, bool FullRender)
+        {
+            SetGetMCAList(download);
+            SetDownloadMCA(download, age);
+
+            UploadImgs = delegate(MinecraftRegionFile x)
+            {
+
+                x.BlobUploadImgs(upload, ImgsFolder);
+                return x.TileFileInfo(ImgsFolder).Exists && x.TopoFileInfo(ImgsFolder).Exists;
+
+            };
+
+            SetRenderImgs(FullRender);
+        }
+        public void SetupFTP(FTP download, FTP upload, BlobContainer uploadBlob, int age, bool FullRender)
+        {
+            SetGetMCAList(download);
+            SetDownloadMCA(download, age);
+
+            UploadImgs = delegate(MinecraftRegionFile x)
+            {
+                x.UpLoadImgs(upload, ImgsFolder);
+                x.BlobUploadImgs(uploadBlob, ImgsFolder);
+                return x.TileFileInfo(ImgsFolder).Exists && x.TopoFileInfo(ImgsFolder).Exists;
+
+            };
+
+            SetRenderImgs(FullRender);
+        }
+        
+        public void SetGetMCAList(FTP ftp)
+        {
+            GetMCAList = delegate() { return ftp.DownloadLatestMCAFiles(RegionFolder); };
+        }
+        public void SetDownloadMCA(FTP ftp,int Age = 0)
+        {
+            DownloadMCA =  delegate(MinecraftRegionFile x)
+            {
+                return x.DownloadMCA(ftp, RegionFolder,Age);
+            };
+        }
+        public void SetUploadImgs(FTP ftp)
+        {
+            UploadImgs = delegate(MinecraftRegionFile x)
+            {
+                
+                x.UpLoadImgs(ftp, ImgsFolder);
+                return x.TileFileInfo(ImgsFolder).Exists && x.TopoFileInfo(ImgsFolder).Exists;
+            };
+        }
+        public void SetRenderImgs(bool FullRender)
+        {
+
+            Process JavaTopoProc = MinecraftRegionFile.JavaTopoProc(RegionFolder);
+
+            RenderImgs = delegate(MinecraftRegionFile x)
+            {
+
+                x.Process(FullRender, RegionFolder, ImgsFolder, JavaTopoProc);
+                return x.TopoFileInfo(ImgsFolder).Exists && x.TileFileInfo(ImgsFolder).Exists;
+            };
+        }
+
+        public void SetUploadCheck(FTP ftp)
+        {
+
+            UploadCheck = delegate(MinecraftRegionFile x)
+            {
+                
+
+                return true;
+            };
+        }
+
+
+        public Func<List<MinecraftRegionFile>> GetMCAList { get; set; }
+        public Func<MinecraftRegionFile, bool> DownloadMCA { get; set; }
+        public Func<MinecraftRegionFile, bool> UploadImgs { get; set; }
+        public Func<MinecraftRegionFile, bool> RenderImgs { get; set; }
+        public Func<MinecraftRegionFile, bool> UploadCheck { get; set; }
+
+        private Queue<MinecraftRegionFile> _RenderQueue = new Queue<MinecraftRegionFile>();
+        private Queue<MinecraftRegionFile> _UploadQueue = new Queue<MinecraftRegionFile>();
+        private Queue<MinecraftRegionFile> _DownloadQueue = new Queue<MinecraftRegionFile>();
+
+        public Queue<MinecraftRegionFile> RenderQueue { get { return _RenderQueue; } }
+        public Queue<MinecraftRegionFile> UploadQueue { get { return _UploadQueue; } }
+        public Queue<MinecraftRegionFile> DownloadQueue { get { return _DownloadQueue; } }
+
+        private Task taskRender = null;
+        private Task taskUpload = null;
+        private Task taskDownload = null;
+
+        public class MinecraftRegionFileSyncEventArgs:EventArgs
+        {
+
+            public MinecraftRegionFileSyncEventArgs(Voxel x) { this.RegionVoxel = MinecraftOrdinates.Region(x); }
+
+            public Voxel RegionVoxel {get;private set;}
+            public bool FTPDownloaded { get; private set; }
+            public bool Rendered { get; private set; }
+            public bool Uploaded { get; private set; }
+            public bool Aborted { get; private set; }
+   
+        }
+        public class ProcessedVoxel:WorldData.Region
+        {
+            public DateTime Started { get; set; }
+            public DateTime Ended { get; set; }
+            public string Msg { get; set; }
+
+        }
+        public event EventHandler<MinecraftRegionFileSyncEventArgs> UpdateEvent;
+       
+        protected virtual void OnUpdateEvent(MinecraftRegionFileSyncEventArgs e)
+        {
+            EventHandler<MinecraftRegionFileSyncEventArgs> handler = UpdateEvent;
+            if (handler != null)
+                handler(this, e);
+        }
+
+        async public void ProcessAsync()
+        {
+            if (Busy)
+                return;
+
+            Busy = true;
+
+            GetMCAList().ForEach(x => DownloadQueue.Enqueue(x));
+
+            Action actRender = delegate()
+            {
+
+                do
+                {
+                    while (RenderQueue.Count > 0)
+                    {
+                        MinecraftRegionFile x = RenderQueue.Dequeue();
+                        if (RenderImgs != null)
+                        {
+                            if (RenderImgs(x) == true)
+                                UploadQueue.Enqueue(x);
+                        }
+                    }
+                    if (bgDone == true) break;
+                }
+                while (taskDownload.IsCompleted == false);
+            };
+
+            Action actUpload = delegate()
+            {
+                do
+                {
+                    while (UploadQueue.Count > 0)
+                    {
+                       MinecraftRegionFile x = UploadQueue.Dequeue();
+
+                       if (UploadImgs != null)
+                           UploadImgs(x);
+
+                       if (bgDone == true) break;
+                    }
+                }
+                while (taskRender.IsCompleted == false);
+            };
+
+            Action actDownload = delegate()
+            {
+
+                while (DownloadQueue.Count > 0)
+                {
+                    if (bgDone == true) break;
+                    MinecraftRegionFile x = DownloadQueue.Dequeue();
+
+                    if (x.ShouldDownload)
+                    {
+                        if (DownloadMCA != null)
+                            DownloadMCA(x);
+                       
+                        RenderQueue.Enqueue(x);
+                    }
+                    else
+                        RenderQueue.Enqueue(x);
+
+                }
+
+            };
+
+
+            taskRender = Task.Run(actRender);
+            taskUpload = Task.Run(actUpload);
+            taskDownload = Task.Run(actDownload);
+
+            await taskDownload;
+            await taskRender;
+            await taskUpload;
+
+            Busy = false;
+        }
+    }
+
     
     public abstract class BlobContainer
     {
@@ -3172,6 +3423,7 @@ namespace LibMCRcon.Remote
     {
 
         public string ConnectionString { get; set; }
+
         
         public abstract void Initialize(string ConnectionString);
         public abstract void RefreshBlobContainers();
@@ -3181,10 +3433,11 @@ namespace LibMCRcon.Remote
 
     }
 
+    
     public abstract class FTP
     {
 
-        public abstract void Open(bool passive = false);
+        public abstract void Open();
         public abstract void Close();
         public abstract bool FindFile(string RemoteFullName);
         
@@ -3204,9 +3457,12 @@ namespace LibMCRcon.Remote
         public int FtpPort { get; set; }
         public string UserName { get; set; }
         public string Password { get; set; }
+        public bool FtpPassive { get; set; }
 
         public abstract List<MinecraftRegionFile> FindRemoteMCAFiles();
         public abstract List<MinecraftRegionFile> DownloadLatestMCAFiles(string localMCApath);
+
+
 
     }
   
@@ -3273,41 +3529,45 @@ namespace LibMCRcon.Remote
   
     public class AzureFTPProcessing<AbstractedFTP>:Queue<FileInfo> where AbstractedFTP:FTP,new()
     {
-        private AbstractedFTP FTP;
-        
-        public bool FtpPassive { get; set; }
+        private AbstractedFTP ftp;
+
+        public bool FtpPassive { get { return ftp.FtpPassive; } set { ftp.FtpPassive = value; } }
+
         public int FileAge { get; set; }
 
 
         public string ImgsPath { get; set; }
         public string RegionPath { get; set; }
 
+        public FTP FTP { get { return this.ftp; } }
+
+
         public AzureFTPProcessing()
             : base()
         {
             FileAge = 300;
-            FTP = new AbstractedFTP();
+            ftp = new AbstractedFTP();
         }
 
         public AzureFTPProcessing(string RemoteRootPath, string FtpAddress, int FtpPort, string UserName, string Password)
             :this()
         {
             
-            FTP.RemoteRootPath = RemoteRootPath;
-            FTP.FtpHost = FtpAddress;
-            FTP.FtpPort = FtpPort;
-            FTP.UserName = UserName;
-            FTP.Password = Password;
+            ftp.RemoteRootPath = RemoteRootPath;
+            ftp.FtpHost = FtpAddress;
+            ftp.FtpPort = FtpPort;
+            ftp.UserName = UserName;
+            ftp.Password = Password;
 
         }
 
         
         public bool TransferQueueToRemote(string remote_folder)
         {
-            if (FTP.IsOpen == false)
-                FTP.Open(FtpPassive);
+            if (ftp.IsOpen == false)
+                ftp.Open();
 
-            if(FTP.IsOpen)
+            if(ftp.IsOpen)
             {
                 FileInfo[] fi = this.ToArray();
                 this.Clear();
@@ -3316,18 +3576,18 @@ namespace LibMCRcon.Remote
                {
                    if(f.Exists)
                    {
-                       string ftpFileName = string.Format(@"{0}/{1}/{2}", FTP.RemoteRootPath,remote_folder, f.Name);
+                       string ftpFileName = string.Format(@"{0}/{1}/{2}", ftp.RemoteRootPath,remote_folder, f.Name);
 
-                       return FTP.Upload(ftpFileName, f.FullName);
+                       return ftp.Upload(ftpFileName, f.FullName);
                    }
                }
 
-                FTP.Close();
+                ftp.Close();
             }
             else
                 return false;
 
-            return FTP.LastUploadSuccess;
+            return ftp.LastUploadSuccess;
         }
 
 
@@ -3336,12 +3596,12 @@ namespace LibMCRcon.Remote
     public class FTPProcessing<AbstractedFTP> : Queue<MinecraftRegionFile> where AbstractedFTP : FTP, new()
     {
         private object thisLock = new object();
-        private AbstractedFTP FTP;
+        private AbstractedFTP ftp;
 
         private List<MinecraftRegionFile> _RFHDT = new List<MinecraftRegionFile>();
         private List<MinecraftRegionFile> _RFMCA = new List<MinecraftRegionFile>();
 
-        public bool FtpPassive { get; set; } 
+        public bool FtpPassive { get { return ftp.FtpPassive; } set { ftp.FtpPassive = value; } }
 
         public string RegionPath { get; set; }
         public string ImgsPath { get; set; }
@@ -3355,12 +3615,16 @@ namespace LibMCRcon.Remote
         public bool LocalOnly { get; set; }
         public bool Refresh { get; set; }
 
+        public FTP FTP { get { return ftp; } }
+
+
+
 
         public FTPProcessing()
             : base()
         {
             FileAge = 300;
-            FTP = new AbstractedFTP();
+            ftp = new AbstractedFTP();
             LocalOnly = false;
             Refresh = false;
 
@@ -3380,11 +3644,11 @@ namespace LibMCRcon.Remote
             : this(RegionPath, ImgsPath)
         {
 
-            FTP.RemoteRootPath = RemoteRegionPath;
-            FTP.FtpHost = FtpAddress;
-            FTP.FtpPort = FtpPort;
-            FTP.UserName = UserName;
-            FTP.Password = Password;
+            ftp.RemoteRootPath = RemoteRegionPath;
+            ftp.FtpHost = FtpAddress;
+            ftp.FtpPort = FtpPort;
+            ftp.UserName = UserName;
+            ftp.Password = Password;
         }
 
         public void Enqueue(List<MinecraftRegionFile> Q)
@@ -3446,7 +3710,7 @@ namespace LibMCRcon.Remote
                     DateTime latestFileTS = lastCheckTS;
 
 
-                    string ftpFileName = string.Format(@"{0}/{1}", FTP.RemoteRootPath, RV.MCAFileName);
+                    string ftpFileName = string.Format(@"{0}/{1}", ftp.RemoteRootPath, RV.MCAFileName);
                     string localFileName = Path.Combine(RegionPath, RV.MCAFileName);
                     string localHdtFileName = Path.Combine(RegionPath, RV.HDTFileName);
                     string localImgFileName = Path.Combine(ImgsPath, RV.TopoFileName);
@@ -3495,16 +3759,16 @@ namespace LibMCRcon.Remote
 
                     if (DoFTP == true)
                     {
-                        if (FTP.IsOpen == false)
+                        if (ftp.IsOpen == false)
                         {
-                            FTP.Open(FtpPassive);
+                            ftp.Open();
                             FTPActive = true;
                         }
 
-                        if (FTP.FindFile(ftpFileName))
+                        if (ftp.FindFile(ftpFileName))
                         {
 
-                            ft = FTP.LastWriteDT;
+                            ft = ftp.LastWriteDT;
                             RV.LastWriteTime = ft;
 
                             if (lcHdtFile.Exists)
@@ -3513,7 +3777,7 @@ namespace LibMCRcon.Remote
                                 TimeSpan diff = ft - lcHdtFile.LastWriteTime;
                                 if (diff.TotalSeconds > FileAge)
                                 {
-                                    if (FTP.Download(ftpFileName, localFileName))
+                                    if (ftp.Download(ftpFileName, localFileName))
                                         _RFMCA.Add(RV);
 
                                 }
@@ -3537,7 +3801,7 @@ namespace LibMCRcon.Remote
                             }
                             else
                             {
-                                if (FTP.Download(ftpFileName, localFileName))
+                                if (ftp.Download(ftpFileName, localFileName))
                                     _RFMCA.Add(RV);
                                 
                             }
@@ -3553,9 +3817,9 @@ namespace LibMCRcon.Remote
                 Enqueue(RV);
             }
 
-            if (FTP.IsOpen)
+            if (ftp.IsOpen)
             {
-                FTP.Close();
+                ftp.Close();
                 FTPActive = false;
             }
         }
@@ -3579,8 +3843,8 @@ namespace LibMCRcon.Remote
             proc.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
             proc.StartInfo.CreateNoWindow = true;
 
-            _RFMCA.ForEach(x => x.Start(true, RegionPath, ImgsPath, proc).Invoke());
-            _RFHDT.ForEach(x => x.Start(false, RegionPath, ImgsPath, proc).Invoke());
+            _RFMCA.ForEach(x => x.Start(true, RegionPath, ImgsPath, proc));
+            _RFHDT.ForEach(x => x.Start(false, RegionPath, ImgsPath, proc));
             
             
             //_procRegionsList.ForEach(x => x.Start());
@@ -3605,7 +3869,7 @@ namespace LibMCRcon.Remote
                 {
 
                     RF.LastWriteTime = f.LastWriteTime;
-                    RF.Start(FullRender, RegionPath, ImgsPath, proc).Invoke();
+                    RF.Start(FullRender, RegionPath, ImgsPath, proc);
                 }
             }
 
@@ -3625,7 +3889,7 @@ namespace LibMCRcon.Remote
             {
                 MinecraftRegionFile RF = new MinecraftRegionFile(f.Name);
                 RF.LastWriteTime = f.LastWriteTime;
-                RF.Start(FullRender, RegionPath, ImgsPath, proc).Invoke();
+                RF.Start(FullRender, RegionPath, ImgsPath, proc);
 
             }
 
@@ -3636,53 +3900,13 @@ namespace LibMCRcon.Remote
         public void ProcessEntireServer()
         {
 
-            if(FTP.IsOpen == false)
-                FTP.Open(FtpPassive);
+            if(ftp.IsOpen == false)
+                ftp.Open();
 
-            List<MinecraftRegionFile> RF = FTP.FindRemoteMCAFiles();
+            List<MinecraftRegionFile> RF = ftp.FindRemoteMCAFiles();
 
             Enqueue(RF);
             Start();
-
-        }
-        public void ProcessLocalRegionSync()
-        {
-
-            Queue<Action> RenderQueue = new Queue<Action>();
-                        
-            bool bgDone = false;
-
-            Action bgX = delegate()
-            {
-                do
-                {
-                    while (RenderQueue.Count > 0)
-                    {
-                        Action bgA = RenderQueue.Dequeue();
-                        bgA();
-                    }
-                    Thread.Sleep(1);
-                } 
-                while (bgDone == false);
-            };
-
-
-                Thread bg = new Thread(new ThreadStart(bgX));
-                bg.IsBackground = true;
-            
-            if (FTP.IsOpen == false)
-                FTP.Open(FtpPassive);
-
-            List<MinecraftRegionFile> lstRF = FTP.DownloadLatestMCAFiles(RegionPath);
-            System.Diagnostics.Process proc = JavaTopoProc();
-
-            if (lstRF.Count > 0)
-                bg.Start();
-
-            lstRF.ForEach(x => { if (x.ShouldDownload) x.Download(FTP, RegionPath); RenderQueue.Enqueue(x.Start(true, RegionPath, ImgsPath, proc)); });
-
-            bgDone = true;
-            bg.Join();
 
         }
         
@@ -3702,65 +3926,7 @@ namespace LibMCRcon.Remote
 
     }
 
-    public class MCProcess<AbstractedFTP, AbstractedBlob>:List<MinecraftRegionFile> where AbstractedFTP:FTP,new() where AbstractedBlob: BlobStorage,new()
-    {
-        public event EventHandler<MCProcessEventArgs> UpdateEvent;
 
-        AbstractedFTP ftp;
-        AbstractedBlob blob;
-
-        public string RegionDirectory { get; private set; }
-        public string ImgDirectory { get; private set; }
-
-        public readonly DirectoryInfo RegionDirectoryInfo
-        {
-            get
-            {
-                return new DirectoryInfo(RegionDirectory);
-            }
-        }
-        public readonly DirectoryInfo ImgDirectoryInfo 
-        {
-            get
-            {
-                return new DirectoryInfo(ImgDirectory);
-            }
-        }
-        
-        public class MCProcessEventArgs:EventArgs
-        {
-            public string Message { get; private set; }
-            public bool FTPDone { get; private set; }
-            public bool MappingDone { get; private set; }
-            public bool UploadDone { get; private set; }
-            
-            public MCProcessEventArgs()
-            {
-                Message = string.Format("Completed: {0}", DateTime.Now);
-            }
-        }
-
-        
-
-
-        public MCProcess(AbstractedFTP FTP, AbstractedBlob Blob,string RegionalDirectory, string ImgDirectory, int Age)
-        {
-            this.ftp = FTP;
-            this.blob = Blob;
-            
-
-        }
-
-        private void OnProcessUpdateEvent(MinecraftRegionFile mcf, MCProcessEventArgs e)
-        {
-            EventHandler<MCProcessEventArgs> handler = UpdateEvent;
-            
-            if(handler != null)
-                handler(mcf, e);
-        }
-
-
-    }
     
 
     
