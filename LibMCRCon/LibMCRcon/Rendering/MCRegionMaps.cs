@@ -248,23 +248,22 @@ namespace LibMCRcon.Rendering
             Color[] Water;
             Color[] Topo;
 
-            List<ColorStep> cList = new List<ColorStep>();
-
-            cList.Add(Color.Black.ColorStep(20));
-            cList.Add(Color.Pink.ColorStep(20));
-            cList.Add(Color.Blue.ColorStep(20));
-            cList.Add(Color.FromArgb(0xDF, 0xC7, 0x00).ColorStep(20));
-            cList.Add(Color.DarkGreen.ColorStep(20));
-            cList.Add(Color.Orange.ColorStep(20));
-            cList.Add(Color.Brown.ColorStep(20));
-            cList.Add(Color.Plum.ColorStep(20));
-            cList.Add(Color.Magenta.ColorStep(20));
-            cList.Add(Color.Coral.ColorStep(20));
-            cList.Add(Color.Aqua.ColorStep(20));
-            cList.Add(Color.LightCyan.ColorStep(20));
-            cList.Add(Color.Yellow.ColorStep(15));
-
-
+            List<ColorStep> cList = new List<ColorStep>
+            {
+                Color.Black.ColorStep(20),
+                Color.Pink.ColorStep(20),
+                Color.Blue.ColorStep(20),
+                Color.FromArgb(0xDF, 0xC7, 0x00).ColorStep(20),
+                Color.DarkGreen.ColorStep(20),
+                Color.Orange.ColorStep(20),
+                Color.Brown.ColorStep(20),
+                Color.Plum.ColorStep(20),
+                Color.Magenta.ColorStep(20),
+                Color.Coral.ColorStep(20),
+                Color.Aqua.ColorStep(20),
+                Color.LightCyan.ColorStep(20),
+                Color.Yellow.ColorStep(15)
+            };
             Topo = ColorStep.CreatePallet(cList);
 
 
