@@ -13,9 +13,33 @@ namespace LibMCRcon.Remote
     public enum MineCraftRegionFileKind { NOTPARSED, MCA, TOPO, TILE, HDT, IMG, TOPOX, TILEX, POI }
     public enum TransferDirection { SEND, RECEIVE }
     public enum MinecraftFileCenteredOrientation { SINGLE, VERTICAL, HORIZONTAL, FULL }
+    public enum MinecraftQueueProcess {UNDEFINED = 0, FTP = 1, REGIONIMGS = 2, WORLDIMGS = 3 }
+
 
     public class MinecraftFile : Voxel
     {
+
+        public class FileData
+        {
+           public string filename { get; set; }
+           public long utc { get; set; }
+        }
+        
+        public class QueueReadyData
+        {
+            public DateTime lastUsedUtc { get; set; }
+            public DateTime lastErrorUtc { get; set; }
+
+            public MinecraftQueueProcess QueueReadyType { get; set; }
+
+            public int RequestStage { get; set; }
+            
+            public QueueReadyData()
+            {
+                QueueReadyType = MinecraftQueueProcess.UNDEFINED;
+            }
+        }
+
 
         private MineCraftRegionFileKind _mckind = MineCraftRegionFileKind.MCA;
         public static readonly object SyncRoot = new object();
@@ -92,10 +116,17 @@ namespace LibMCRcon.Remote
 
         public int RegionsPerWorld { get; set; }
         
+        public void ConvertToWorldFile(int RegionsPerWorld)
+        {
+            this.RegionsPerWorld = RegionsPerWorld;
+            SetVoxel(0, X, Z, int.MaxValue, BlocksPerWorld);
+        }
+
         public int PixelsPerWorldRegion
         {
             get
             {
+                
                 if ((512 % RegionsPerWorld) == 0)
                 {
                     return 512 / RegionsPerWorld;
@@ -107,7 +138,6 @@ namespace LibMCRcon.Remote
                 }
             }
         }
-
         public int PixelsPerRegion
         {
             get
@@ -123,7 +153,6 @@ namespace LibMCRcon.Remote
                 }
             }
         }
-
         public int BlocksPerWorld
         {
             get
@@ -405,47 +434,39 @@ namespace LibMCRcon.Remote
         private void Init()
         {
             MCKind = MineCraftRegionFileKind.NOTPARSED;
-            LocalLastWrite = DateTime.MaxValue; 
-            RemoteLastWrite = DateTime.MaxValue; 
+            LocalLastWrite = DateTime.MaxValue;
+            RemoteLastWrite = DateTime.MaxValue;
             RegionsPerWorld = 1;
         }
 
-        public MinecraftFile() : base(0, 256, 256, int.MaxValue, 512) { Init(); }
-
-        public MinecraftFile(int Xs, int Zs, int RegionsPerWorld, MineCraftRegionFileKind MCKind)
+        
+        public MinecraftFile() : base( int.MaxValue, 512) { Y = 0; X = 256; Z = 256; Init(); }
+        public MinecraftFile(int Xs, int Zs, int RegionsPerWorld, MineCraftRegionFileKind MCKind) : base(int.MaxValue, 512 * RegionsPerWorld)
         {
-            this.IsValid = true;
+            IsValid = true;
             this.RegionsPerWorld = RegionsPerWorld;
             this.MCKind = MCKind;
 
             LocalLastWrite = DateTime.MaxValue;
             RemoteLastWrite = DateTime.MaxValue;
 
-            Sz[0] = int.MaxValue;
-            Sz[1] = 512 * RegionsPerWorld;
-            Sz[2] = 512 * RegionsPerWorld;
 
             Y = 255;
             this.Xs = Xs;
             this.Zs = Zs;
-        
+
             Xo = 0;
             Zo = 0;
-
-            
         }
-        public MinecraftFile(int Xs, int Zs, int Xo, int Zo, int RegionsPerWorld, MineCraftRegionFileKind MCKind)
+        public MinecraftFile(int Xs, int Zs, int Xo, int Zo, int RegionsPerWorld, MineCraftRegionFileKind MCKind) : base(int.MaxValue, 512 * RegionsPerWorld)
         {
-            this.IsValid = true;
+            IsValid = true;
             this.RegionsPerWorld = RegionsPerWorld;
             this.MCKind = MCKind;
 
             LocalLastWrite = DateTime.MaxValue;
             RemoteLastWrite = DateTime.MaxValue;
 
-            Sz[0] = int.MaxValue;
-            Sz[1] = 512 * RegionsPerWorld;
-            Sz[2] = 512 * RegionsPerWorld;
 
             Y = 255;
 
@@ -455,53 +476,36 @@ namespace LibMCRcon.Remote
             this.Xo = Xo;
             this.Zo = Zo;
         }
-
         public MinecraftFile(MineCraftRegionFileKind mcKind) : this() { MCKind = mcKind; }
-        
         public MinecraftFile(Voxel V) : base(V) { Init(); }
-        public MinecraftFile(Voxel V, MineCraftRegionFileKind MCKind)
+        public MinecraftFile(Voxel V, MineCraftRegionFileKind MCKind) : base(V, 512) 
         {
 
-            this.IsValid = true;
-            this.RegionsPerWorld = 1;
+            IsValid = true;
+            RegionsPerWorld = 1;
             this.MCKind = MCKind;
 
             LocalLastWrite = DateTime.MaxValue;
             RemoteLastWrite = DateTime.MaxValue;
 
-            Sz[0] = int.MaxValue;
-            Sz[1] = 512;
-            Sz[2] = 512;
-
             Y = 255;
-            X = V.X;
-            Z = V.Z;
-
         }
-        public MinecraftFile(Voxel V, int RegionsPerWorld)
+        public MinecraftFile(Voxel V, int RegionsPerWorld) : base(V, 512 * RegionsPerWorld)
         {
 
-            this.IsValid = true;
+            IsValid = true;
             this.RegionsPerWorld = RegionsPerWorld;
 
             if (RegionsPerWorld > 1)
-                this.MCKind = MineCraftRegionFileKind.TILE;
+                MCKind = MineCraftRegionFileKind.TILE;
             else
-                this.MCKind = MineCraftRegionFileKind.TILEX;
+                MCKind = MineCraftRegionFileKind.TILEX;
 
             LocalLastWrite = DateTime.MaxValue;
             RemoteLastWrite = DateTime.MaxValue;
 
-            Sz[0] = int.MaxValue;
-            Sz[1] = 512 * RegionsPerWorld;
-            Sz[2] = 512 * RegionsPerWorld;
-
             Y = 255;
-            X = V.X;
-            Z = V.Z;
-        
         }
-        
         public MinecraftFile(Voxel V, int RegionsPerWorld, MineCraftRegionFileKind MCKind)
         {
             this.IsValid = true;
@@ -537,7 +541,6 @@ namespace LibMCRcon.Remote
             X = V.X;
             Z = V.Z;
         }
-
         public MinecraftFile(string FileName)
         {
            
@@ -555,6 +558,22 @@ namespace LibMCRcon.Remote
 
             SetByFileName(FileName); 
         }
+        public MinecraftFile(FileData FD):this(FD.filename)
+        {
+            RemoteLastWrite = DateTime.FromFileTimeUtc(FD.utc).ToLocalTime();
+
+        }
+
+        public MinecraftFile(MinecraftFile MF, int RegionsPerWorld):base(MF.SegmentAlignedVoxel(RegionsPerWorld))
+        {
+
+            this.RegionsPerWorld = RegionsPerWorld;
+
+            MCKind = MF.MCKind;
+            LocalLastWrite = DateTime.MaxValue;
+            RemoteLastWrite = DateTime.MaxValue;
+
+        }
 
         public void SetByFileName(string FileName)
         {
@@ -571,12 +590,9 @@ namespace LibMCRcon.Remote
             {
 
                 string e = v.Length > 5 ? v[6]: v.Length > 4 ? v[4] : v[3];
-                int x = 0;
-
-                if (int.TryParse(v[1], out x) == true)
+                if (int.TryParse(v[1], out int x) == true)
                 {
-                    int z = 0;
-                    if (int.TryParse(v[2], out z) == true)
+                    if (int.TryParse(v[2], out int z) == true)
                     {
 
                         IsValid = true;
@@ -810,19 +826,21 @@ namespace LibMCRcon.Remote
 
                 mca.LoadRegion(Xs, Zs);
 
-                LibMCRcon.Rendering.MCRegionMaps.RenderDataFromRegion(mca, MapData, BlockData);
-                LibMCRcon.Rendering.MCRegionMaps.RenderTopoPngFromRegion(MapData, ImgsDirectory, Xs, Zs);
+                Rendering.MCRegionMaps.RenderDataFromRegion(mca, MapData, BlockData);
+                Rendering.MCRegionMaps.RenderTopoPngFromRegion(MapData, ImgsDirectory, Xs, Zs);
                 //LibMCRcon.Rendering.MCRegionMaps.RenderBlockPngFromRegion(MapData, BlockData, ImgsDir.FullName, RV);
 
 
                 FileInfo mcaH = HDTFileInfo(RegionDirectory);
-                FileStream tempFS = mcaH.Create();
+                using (FileStream tempFS = mcaH.Create())
+                {
 
-                tempFS.Write(MapData[0], 0, 512 * 512);
-                tempFS.Write(MapData[1], 0, 512 * 512);
-                tempFS.Flush();
-                tempFS.Close();
+                    tempFS.Write(MapData[0], 0, 512 * 512);
+                    tempFS.Write(MapData[1], 0, 512 * 512);
+                    tempFS.Flush();
+                    tempFS.Close();
 
+                }
 
                 mcaH.LastWriteTime = mca.LastModified;
 
@@ -830,14 +848,12 @@ namespace LibMCRcon.Remote
                 TogosJavaProc.StartInfo.Arguments = string.Format("-jar tmcmr.jar -f -o {0} {1}", ImgsDirectory, FileName(MineCraftRegionFileKind.MCA, Xs, Zs, 0));
                 if (TogosJavaProc.Start() == true)
                     TogosJavaProc.WaitForExit();
-
-
+                
                 FileInfo lwFS = null;
 
                 lwFS = TOPOFileInfo(ImgsDirectory);
                 if (lwFS.Exists)
                     lwFS.LastWriteTime = mca.LastModified;
-
 
                 lwFS = TILEFileInfo(ImgsDirectory);
                 if (lwFS.Exists)
@@ -871,11 +887,12 @@ namespace LibMCRcon.Remote
         public void FullProcess(MinecraftTransfer DL, MinecraftTransfer IMG, MinecraftTransfer HDT, MinecraftTransfer MCA, bool FullRender, int Age, string RegionDirectory, string ImgsDirectory)
         {
 
-            FileInfo FI;
+            FileInfo FI = null;
 
-            DL.TransferNext(MCAFileInfo(RegionDirectory), TransferDirection.RECEIVE);
+            if (DL != null)
+                DL.TransferNext(MCAFileInfo(RegionDirectory), TransferDirection.RECEIVE);
 
-            Process(FullRender, RegionDirectory, ImgsDirectory, MinecraftFile.JavaTopoProc(RegionDirectory));
+            Process(FullRender, RegionDirectory, ImgsDirectory, JavaTopoProc(RegionDirectory));
 
             FI = TOPOFileInfo(ImgsDirectory);
             if (FI.Exists == true)
@@ -910,6 +927,15 @@ namespace LibMCRcon.Remote
                 remoteMClist.AddRange(RemoteFetch.GetRemoteData(""));
             }
         }
+
+        public static void RemoveRemoteLessThanDate(DateTime Cutoff)
+        {
+            lock (SyncRoot)
+            {
+                remoteMClist = remoteMClist.FindAll(x => x.RemoteLastWrite >= Cutoff);
+            }
+        }
+
         public static void RefreshRemote(FileInfo RemoteCSVData, bool Append = false)
         {
             using (var tx = RemoteCSVData.OpenText())
@@ -945,7 +971,60 @@ namespace LibMCRcon.Remote
 
             }
         }
-        
+        public static void RefreshRemote(IEnumerable<FileData> RemoteData, bool Append = false)
+        {
+
+            lock (SyncRoot)
+            {
+                if (Append == false) remoteMClist.Clear();
+                foreach (var tx in RemoteData)
+                {
+                    DateTime dt = DateTime.MaxValue;
+                    MinecraftFile x = new MinecraftFile(tx.filename);
+
+                    if (x.MCKind != MineCraftRegionFileKind.NOTPARSED)
+                    {
+                        x.RemoteLastWrite = DateTime.FromFileTimeUtc(tx.utc).ToLocalTime();
+                        remoteMClist.Add(x);
+                    }
+
+                }
+
+            }
+            
+        }
+
+        public FileData Persist()
+        {
+            return new FileData() { filename = this.FileName(), utc = RemoteLastWrite.ToUniversalTime().ToFileTimeUtc() };
+        }
+        public List<MinecraftFile> RestoreFromFileData(IEnumerable<FileData> FD)
+        {
+            List<MinecraftFile> MFL = new List<MinecraftFile>();
+            foreach (var f in FD)
+                MFL.Add(new MinecraftFile(f));
+
+            return MFL;
+        }
+
+        public static FileData[] PersistList(List<MinecraftFile> RemoteList)
+        {
+            FileData[] lst = new FileData[RemoteList.Count];
+
+            lock (SyncRoot)
+            {
+
+                for (int idx = 0; idx < RemoteList.Count; idx++)
+                {
+                    MinecraftFile x = RemoteList[idx];
+                    lst[idx] = new FileData() { filename = x.FileName(), utc = x.RemoteLastWrite.ToFileTimeUtc() };
+                }
+            }
+
+            return lst;
+
+        }
+
         public static void PersistRemoteList(FileInfo RemoteCSVData)
         {
             StringBuilder sb = new StringBuilder();
@@ -955,6 +1034,11 @@ namespace LibMCRcon.Remote
 
             File.WriteAllText(RemoteCSVData.FullName, sb.ToString());
         }
+        public static FileData[] PersistRemoteList()
+        {
+            return PersistList(remoteMClist);
+        }
+
         public static void PersistLocalList(FileInfo RemoteCSVData)
         {
             StringBuilder sb = new StringBuilder();
@@ -963,6 +1047,10 @@ namespace LibMCRcon.Remote
                 sb.AppendLine(string.Format("{0},{1}", x.FileName(), x.LocalLastWrite.ToFileTimeUtc()));
 
             File.WriteAllText(RemoteCSVData.FullName, sb.ToString());
+        }
+        public static FileData[] PersistLocalList()
+        {
+            return PersistList(localMClist);
         }
 
         public static void RefreshLocal(IEnumerable<MinecraftFile> List, bool Append = false)
@@ -986,9 +1074,9 @@ namespace LibMCRcon.Remote
 
                 foreach (FileInfo fi in di.GetFiles(_fileSearchPattern[MCKindIndex(MCKind)]))
                 {
-                    MinecraftFile RF = new MinecraftFile(fi.Name);
-
-                    RF.LocalLastWrite = fi.LastWriteTime;
+                    MinecraftFile RF = new MinecraftFile(fi.Name)
+                    { LocalLastWrite = fi.LastWriteTime };
+                    
                     if (RF.IsValid)
                         localMClist.Add(RF);
                 }
@@ -1048,8 +1136,39 @@ namespace LibMCRcon.Remote
 
             }
         }
-        
-        
+        public static void RefreshLocal(IEnumerable<FileData> RemoteData, bool Append = false)
+        {
+
+            lock (SyncRoot)
+            {
+                if (Append == false) localMClist.Clear();
+                foreach (var tx in RemoteData)
+                {
+                    DateTime dt = DateTime.MaxValue;
+                    MinecraftFile x = new MinecraftFile(tx.filename);
+
+                    if (x.MCKind != MineCraftRegionFileKind.NOTPARSED)
+                    {
+                        x.RemoteLastWrite = DateTime.FromFileTimeUtc(tx.utc).ToLocalTime();
+                        localMClist.Add(x);
+                    }
+
+                }
+
+            }
+
+        }
+        public static void RefreshLocal(MinecraftTransfer RemoteFetch, bool Append = false)
+        {
+            lock (SyncRoot)
+            {
+
+                if (Append == false) localMClist.Clear();
+                localMClist.AddRange(RemoteFetch.GetRemoteData());
+            }
+        }
+
+
         public static void SyncronizeMCA(int AgeCheck = 0)
         {
 
@@ -1132,14 +1251,15 @@ namespace LibMCRcon.Remote
         public static MinecraftFile TOPO { get { return new MinecraftFile(MineCraftRegionFileKind.TOPO); } }
         public static MinecraftFile TILE { get { return new MinecraftFile(MineCraftRegionFileKind.TILE); } }
 
-        public static Process JavaTopoProc(string RegionPath)
+        public static Process JavaTopoProc(string RegionPath, string JavaBinary = "java")
         {
 
             string JarName = Path.Combine(RegionPath, "tmcmr.jar");
 
-            System.Diagnostics.Process proc = new System.Diagnostics.Process();
-            proc.EnableRaisingEvents = false;
-            proc.StartInfo.FileName = "java";
+            System.Diagnostics.Process proc = new System.Diagnostics.Process()
+            { EnableRaisingEvents = false };
+
+            proc.StartInfo.FileName = JavaBinary;
             proc.StartInfo.WorkingDirectory = RegionPath;
 
             proc.StartInfo.UseShellExecute = false;

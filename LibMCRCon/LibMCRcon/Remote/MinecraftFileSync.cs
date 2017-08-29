@@ -79,8 +79,6 @@ namespace LibMCRcon.Remote
         public int Renders { get; private set; }
 
 
-
-
         private TransferQueue<MinecraftFile> upload = new TransferQueue<MinecraftFile>();
         private TransferQueue<MinecraftFile> render = new TransferQueue<MinecraftFile>();
 

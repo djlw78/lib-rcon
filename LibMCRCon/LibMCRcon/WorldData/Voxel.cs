@@ -27,25 +27,18 @@ namespace LibMCRcon.WorldData
         }
 
         //YXZ
-        public int[] V { get; internal set; }
+        public int[] V { get; internal set; } 
         public int[] S { get; internal set; }
         public int[] Sz { get; internal set; }
 
-        
-        public Voxel() { V = new int[3] { 0, 0, 0 }; S = new int[3] { 0, 0, 0 }; Sz = new int[3] { int.MaxValue, 512, 512 }; IsValid = true; }
-        
-        public Voxel(int y, int x, int z)
+
+        public Voxel() : this(int.MaxValue, 512) { Y = 65; X = 0; Z = 0; }
+
+        public Voxel(int YSize, int XZSize)
         {
-            Sz = new int[3] { 256, 512, 512 };
-            V = new int[3] { Offset(Sz[0], y), Offset(Sz[1], x), Offset(Sz[2], z) };
-            S = new int[3] { Segment(Sz[0], y), Segment(Sz[1], x), Segment(Sz[2], z) };
-            IsValid = true;
-        }
-        public Voxel(int y, int x, int z, int YSize, int XZSize)
-        {
+            V = new int[3] { 0, 0, 0 };
+            S = new int[3] { 0, 0, 0 };
             Sz = new int[3] { YSize, XZSize, XZSize };
-            V = new int[3] { Offset(Sz[0], y), Offset(Sz[1], x), Offset(Sz[2], z) };
-            S = new int[3] { Segment(Sz[0], y), Segment(Sz[1], x), Segment(Sz[2], z) };
             IsValid = true;
         }
         
@@ -93,7 +86,7 @@ namespace LibMCRcon.WorldData
             SetVoxel(Voxel.Y, Voxel.X, Voxel.Z, int.MaxValue,XZSize);
         }
 
-
+        
         public void SetSegment(int xSeg, int zSeg)
         {
             S[1] = xSeg;
@@ -110,28 +103,11 @@ namespace LibMCRcon.WorldData
 
         }
 
-        public Voxel SegmentAlignedVoxel()
-        {
-            int y = Ordinate(Sz[0], S[0], 0);
-            int x = Ordinate(Sz[1], S[1], 0);
-            int z = Ordinate(Sz[2], S[2], 0);
+        public Voxel SegmentAlignedVoxel() { return SegmentAlignedVoxel(Sz[0], Sz[1]); }
+        public Voxel SegmentAlignedVoxel(int RegionsPerWorld) { return SegmentAlignedVoxel(Sz[0], RegionsPerWorld * 512); } 
+        public Voxel SegmentAlignedVoxel(int YSize, int XZSize) { return new Voxel(YSize, XZSize) { Y = Ordinate(Sz[0], S[0], 0), X = Ordinate(Sz[1], S[1], 0), Z = Ordinate(Sz[2], S[2], 0) }; }
 
-            return new Voxel(y, x, z, Sz[0], Sz[1]);
-        }
-        public Voxel SegmentAlignedVoxel(int YSize, int XZSize)
-        {
-            int y = Ordinate(Sz[0], S[0], 0);
-            int x = Ordinate(Sz[1], S[1], 0);
-            int z = Ordinate(Sz[2], S[2], 0);
-
-            return new Voxel(y, x, z, YSize, XZSize);
-
-        }
-
-        public Voxel OffsetVoxel(int YSize, int XZSize)
-        {
-            return new Voxel(V[0], V[1], V[2], YSize, XZSize);
-        }
+        public Voxel OffsetVoxel(int YSize, int XZSize) { return new Voxel(YSize, XZSize) { Y = V[0], X = V[1], Z = V[2] }; }
 
         public void SetOffset(int y, int x, int z)
         {

@@ -2,7 +2,7 @@
 {
     public class WorldMap:Voxel
     {
-        public WorldMap() : base(0, 0, 0, int.MaxValue, 512 * 8) { }
+        public WorldMap() : base( int.MaxValue, 512 * 8) { Y = 65; }
 
     }
 }

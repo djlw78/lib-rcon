@@ -8,7 +8,6 @@ namespace LibMCRcon.WorldData
     {
 
         public Region() : base() { Chunk = OffsetVoxel(16, 16); }
-        public Region(int x, int y, int z) : base(y, x, z) { Chunk = OffsetVoxel(16, 16); }
         public Region(Voxel Voxel) : base(Voxel) { Chunk = OffsetVoxel(16, 16); }
 
         public Voxel Chunk { get; private set; }

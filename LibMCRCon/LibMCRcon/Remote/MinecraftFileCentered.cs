@@ -111,7 +111,7 @@ namespace LibMCRcon.Remote
 
         }
 
-        public Bitmap RetrieveBitmap(MinecraftTransfer DL, string FileName)
+        public static Bitmap RetrieveBitmap(MinecraftTransfer DL, string FileName)
         {
 
             using(MemoryStream ms = new MemoryStream())
@@ -123,7 +123,34 @@ namespace LibMCRcon.Remote
             return null;
 
         }
-        public void SaveBitmap(MinecraftTransfer DL, string FileName, Bitmap Bitmap)
+        public static Bitmap RetrieveBitmap(string FullFilePath)
+        {
+            var F = new FileInfo(FullFilePath);
+            if (F.Exists)
+            {
+                using (FileStream fs = F.OpenRead())
+                    return new Bitmap(fs);
+
+            }
+
+            return null;
+
+        }
+        public static Image RetrieveImage(string FullFilePath)
+        {
+            var F = new FileInfo(FullFilePath);
+            if (F.Exists)
+            {
+                using (FileStream fs = F.OpenRead())
+                    return Image.FromStream(fs);
+
+            }
+
+            return null;
+
+        }
+
+        public static void SaveBitmap(MinecraftTransfer DL, string FileName, Bitmap Bitmap)
         {
             using(MemoryStream ms = new MemoryStream())
             {
@@ -134,6 +161,12 @@ namespace LibMCRcon.Remote
                 ms.Close();
             }
 
+        }
+        public static void SaveBitmap(string FullFilePath, Bitmap Bitmap)
+        {
+            var F = new FileInfo(FullFilePath);
+            using (var fs = F.Open(FileMode.Create))
+                Bitmap.Save(fs, System.Drawing.Imaging.ImageFormat.Png);
         }
 
         public string mcCenteredFileName(string unqMasterName)

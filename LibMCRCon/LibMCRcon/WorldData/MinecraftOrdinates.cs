@@ -9,16 +9,16 @@ namespace LibMCRcon.WorldData
 
     public static class MinecraftOrdinates
     {
-        public static Voxel Region() { return new Voxel(0, 0, 0, int.MaxValue, 512); }
-        public static Voxel Region(int y, int x, int z) { return new Voxel(y, x, z, int.MaxValue, 512); }
-        public static Voxel Region(Voxel Voxel) { return new Voxel(Voxel.Y, Voxel.X, Voxel.Z, int.MaxValue, 512); }
+        public static Voxel Region() { return new Voxel(int.MaxValue, 512) { Y = 0, X = 0, Z = 0 }; }
+        public static Voxel Region(int y, int x, int z) { return new Voxel(int.MaxValue, 512) { Y = y, X = x, Z = z }; }
+        public static Voxel Region(Voxel Voxel) { return new Voxel(int.MaxValue, 512) { Y = Voxel.Y, X = Voxel.X, Z = Voxel.Z }; }
 
-        public static Voxel World(int RegionsPerWorld) { return new Voxel(0, 0, 0, int.MaxValue, 512 * RegionsPerWorld); }
-        public static Voxel World(int RegionsPerWorld, int y, int x, int z) { return new Voxel(y, x, z, int.MaxValue, 512 * RegionsPerWorld); }
-        public static Voxel World(int RegionsPerWorld, Voxel Voxel) { return new Voxel(Voxel.Y, Voxel.X, Voxel.Z, int.MaxValue, 512 * RegionsPerWorld); }
+        public static Voxel World(int RegionsPerWorld) { return new Voxel(int.MaxValue, 512 * RegionsPerWorld) { Y = 0, X = 0, Z = 0 }; }
+        public static Voxel World(int RegionsPerWorld, int y, int x, int z) { return new Voxel(int.MaxValue, 512 * RegionsPerWorld) { Y = y, X = x, Z = z }; }
+        public static Voxel World(int RegionsPerWorld, Voxel Voxel) { return new Voxel(int.MaxValue, 512 * RegionsPerWorld) { Y = Voxel.Y, X = Voxel.X, Z = Voxel.Z }; }
 
-        public static Voxel Chunk() { return new Voxel(0, 0, 0, 16, 16); }
-        public static Voxel Chunk(int y, int x, int z) { return new Voxel(y, x, z, 16, 16); }
+        public static Voxel Chunk() { return new Voxel(16, 16) { Y = 0, X = 0, Z = 0 }; }
+        public static Voxel Chunk(int y, int x, int z) { return new Voxel(16, 16) { Y = y, X = x, Z = z }; }
         public static Voxel Chunk(Voxel Voxel) { return Voxel.OffsetVoxel(16, 16); }
 
         public static int ChunkIdx(Voxel Chunk) { return (Chunk.Zs * 32) + Chunk.Xs; }

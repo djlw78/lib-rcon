@@ -28,9 +28,11 @@ namespace LibMCRcon.Remote
         public abstract int TransferItemAge(FileInfo item, TransferDirection Direction);
         public abstract bool TransferNext(FileInfo item, TransferDirection Direction);
         public abstract bool TransferNext(string FileName, Stream item, TransferDirection Direction);
+
         public abstract bool Exists(string FileName);
         public abstract int Age(string FileName);
 
+        public abstract List<MinecraftFile> GetRemoteData();
         public abstract List<MinecraftFile> GetRemoteData(string RemotePath);
         public abstract List<MinecraftFile> GetRemoteData(string RemotePath, string Filter);
 
